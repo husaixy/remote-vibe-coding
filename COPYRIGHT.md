@@ -17,6 +17,14 @@ Copyright (C) 2026 Remote Mic contributors
 
 本适配作品的软件代码按 `GPL-3.0-only` 发布。完整许可见 [LICENSE.md](LICENSE.md)，第三方来源和归属见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
+## Windows 适配来源
+
+`apps/windows/rc003/` 是 Remote Mic 的 Windows RC003 适配。其实现基于
+[`nijez/open-voice-bridge`](https://github.com/nijez/open-voice-bridge) 中的
+GPL-3.0-only Windows RC003 客户端，并结合本仓库的 Remote Mic 品牌、配置目录、
+发布脚本和中文文档进行了改造；相关上游版权和变更说明见
+[`apps/windows/rc003/ATTRIBUTION.md`](apps/windows/rc003/ATTRIBUTION.md)。
+
 ## App Logo
 
 以下 App Logo 是独立的专有品牌资产，不属于 `GPL-3.0-only` 授权范围：

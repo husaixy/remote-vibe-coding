@@ -26,6 +26,20 @@
 
 当前安装包尚未进行 Apple 公证。若 macOS 阻止打开，请前往“系统设置 → 隐私与安全性”，确认文件来自你信任的来源后选择继续打开。
 
+## Windows 版本（RC003）
+
+Windows 客户端位于 [`apps/windows/rc003`](apps/windows/rc003/README.md)，功能
+对标本仓库的 macOS 版本：连接小米蓝牙遥控器 2 Pro（RC003），读取普通按键，
+接收 ATVV 蓝牙语音并输出到用户选择的 Windows 音频设备，再通过可配置的组合键
+触发 Windows 语音输入。它使用 WinRT BLE、Windows Raw Input、SendInput 和
+PortAudio，并提供中文设置窗口、按键映射、连接诊断、便携版 ZIP 和 Inno Setup
+安装包。
+
+Windows 版当前标记为“源码/构建候选”：需要 Windows 10 1809（64 位）或更高版本，
+语音输入通常还需要用户自行安装并配置 VB-CABLE；项目 CI 和自动构建不能替代
+真实 RC003 遥控器的配对、按键和语音链路验收。详细安装、构建和已知限制见
+[`apps/windows/rc003/README.md`](apps/windows/rc003/README.md)。
+
 ## 首次使用
 
 1. 在“系统设置 → 蓝牙”中打开蓝牙。

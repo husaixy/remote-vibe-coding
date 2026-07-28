@@ -7,7 +7,7 @@
 - Reference revision: `8a93f321ac71a602300c6cd77f7256fa4b63068e`
 - License: GNU General Public License v3.0 only (`GPL-3.0-only`)
 
-The Xiaomi RC003 ATVV UUIDs, microphone command behavior, IMA/DVI ADPCM decoding order, capability parsing, and HID usage mapping were adapted from this project. The macOS implementation uses Apple public frameworks and does not include the upstream Windows injection, VB-CABLE packaging, commercial branding, or customer systems.
+The Xiaomi RC003 ATVV UUIDs, microphone command behavior, IMA/DVI ADPCM decoding order, capability parsing, and HID usage mapping were adapted from this project. The Windows client also derives from the GPL-3.0-only Windows RC003 implementation in `nijez/open-voice-bridge`; see `apps/windows/rc003/ATTRIBUTION.md` for the file-level attribution and changes. The Windows client does not include any upstream customer data or commercial branding.
 
 ## BlackHole
 
@@ -30,3 +30,20 @@ The Doubao compatibility design is informed by MiRemoteVoice: a side-by-side Bla
 ## RC003 product photo
 
 The RC003 product photo bundled as `RC003-remote-photo.png` was supplied by the user on 2026-07-17 for the physical-button mapping interface. It is preserved at its original 508 x 1030 aspect ratio. Copyright and trademark rights in the photo and depicted products remain with their respective owners; the GPL-3.0-only license for the program does not grant additional rights to this image or the Xiaomi marks.
+
+## VB-CABLE
+
+- Project: `VB-Audio VB-CABLE`
+- Source: <https://vb-audio.com/Cable/>
+- Package used by the optional Windows helper: `VBCABLE_Driver_Pack45.zip`
+- License: VB-Audio Donationware / the vendor's own terms; it is not GPL code
+
+The Windows client does not modify, re-license, silently install, or select
+VB-CABLE as the Windows default device. The build helper
+`apps/windows/rc003/build/fetch-vb-cable.ps1` downloads and hash-verifies the
+official package only as an explicit build step. At runtime, installation is
+available only after an explicit user click and a real Windows UAC prompt;
+the Remote Mic process never runs with administrator privileges and never reports a driver install as successful merely because a process was launched.
+The optional bundle contains only the free Basic package, not the paid A+B/C+D
+products. Audio is routed only to the endpoint explicitly selected by the user,
+and the application never changes the Windows system default input/output device.
