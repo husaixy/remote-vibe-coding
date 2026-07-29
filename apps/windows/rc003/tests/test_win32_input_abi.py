@@ -63,6 +63,18 @@ class InputStructShapeTests(unittest.TestCase):
         self.assertIs(input_type, win32_input.INPUT)
         self.assertEqual(ctypes.sizeof(array), ctypes.sizeof(win32_input.INPUT))
 
+    def test_right_alt_uses_the_extended_physical_scan_code(self):
+        array, _ = win32_input._build_input_array(
+            [(win32_input.win32_keys.VK_CODES["ralt"], False)]
+        )
+        keybd = array[0].union.ki
+        self.assertEqual(keybd.wVk, 0)
+        self.assertEqual(keybd.wScan, 0x38)
+        self.assertEqual(
+            keybd.dwFlags,
+            win32_input._KEYEVENTF_SCANCODE | win32_input._KEYEVENTF_EXTENDEDKEY,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

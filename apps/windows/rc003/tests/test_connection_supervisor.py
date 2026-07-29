@@ -262,5 +262,72 @@ class StopBehaviorTests(unittest.TestCase):
         self.assertIs(supervisor.last_error, boom)
 
 
+class RetryBackoffTests(unittest.TestCase):
+    def test_consecutive_connect_failures_back_off_until_the_configured_cap(self):
+        attempts = []
+        delays = []
+
+        async def connect():
+            attempts.append(1)
+            raise RuntimeError("simulated connect failure")
+
+        async def cleanup():
+            pass
+
+        async def fake_sleep(seconds):
+            delays.append(seconds)
+            if len(delays) >= 4:
+                raise asyncio.CancelledError()
+
+        async def scenario():
+            supervisor = ConnectionSupervisor(
+                connect,
+                cleanup,
+                retry_delay=5.0,
+                max_retry_delay=20.0,
+                sleep=fake_sleep,
+            )
+            with self.assertRaises(asyncio.CancelledError):
+                await supervisor.run_forever()
+
+        _run(scenario())
+        self.assertEqual(delays, [5.0, 10.0, 20.0, 20.0])
+
+    def test_successful_connection_resets_the_next_retry_delay_to_base(self):
+        delays = []
+        supervisor_ref = {}
+        connect_count = 0
+
+        async def connect():
+            nonlocal connect_count
+            connect_count += 1
+            if connect_count <= 2:
+                raise RuntimeError("simulated connect failure")
+            supervisor_ref["supervisor"].request_reconnect()
+
+        async def cleanup():
+            pass
+
+        async def fake_sleep(seconds):
+            delays.append(seconds)
+            if len(delays) >= 4:
+                raise asyncio.CancelledError()
+
+        async def scenario():
+            supervisor = ConnectionSupervisor(
+                connect,
+                cleanup,
+                retry_delay=5.0,
+                max_retry_delay=20.0,
+                sleep=fake_sleep,
+            )
+            supervisor_ref["supervisor"] = supervisor
+            with self.assertRaises(asyncio.CancelledError):
+                await supervisor.run_forever()
+
+        _run(scenario())
+        self.assertEqual(delays, [5.0, 10.0, 20.0, 5.0])
+
+
 if __name__ == "__main__":
     unittest.main()

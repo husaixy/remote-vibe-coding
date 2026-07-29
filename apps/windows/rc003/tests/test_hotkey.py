@@ -1,11 +1,33 @@
 import unittest
 
-from ovb_rc003 import hotkey
+from ovb_rc003 import hotkey, key_mapping
 
 
 class HotkeySpecTests(unittest.TestCase):
     def test_default_voice_hotkey_uses_the_uncommon_configurable_chord(self):
-        self.assertEqual(hotkey.DEFAULT_VOICE_HOTKEY.serialize(), "ctrl+shift+u")
+        self.assertEqual(hotkey.DEFAULT_VOICE_HOTKEY.serialize(), "ralt+space")
+
+    def test_voice_hotkey_presets_are_owned_by_the_trigger_mode_model(self):
+        self.assertEqual(
+            key_mapping.voice_hotkey_for_trigger_mode(key_mapping.VoiceTriggerMode.TOGGLE),
+            "ralt+space",
+        )
+        self.assertEqual(
+            key_mapping.voice_hotkey_for_trigger_mode(key_mapping.VoiceTriggerMode.HOLD),
+            "ralt",
+        )
+
+    def test_right_alt_can_be_used_as_a_hold_trigger(self):
+        spec = hotkey.HotkeySpec.parse("right_alt")
+        self.assertEqual(spec.modifiers, ())
+        self.assertEqual(spec.key, "ralt")
+        self.assertEqual(spec.serialize(), "ralt")
+
+    def test_right_alt_space_round_trips_for_toggle_trigger(self):
+        spec = hotkey.HotkeySpec.parse("right_alt+space")
+        self.assertEqual(spec.modifiers, ("ralt",))
+        self.assertEqual(spec.key, "space")
+        self.assertEqual(spec.serialize(), "ralt+space")
 
     def test_duplicate_modifiers_are_normalized(self):
         self.assertEqual(hotkey.HotkeySpec.parse("ctrl+ctrl+shift+p").serialize(), "ctrl+shift+p")

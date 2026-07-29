@@ -29,7 +29,7 @@ from pathlib import Path
 
 from ovb_rc003 import app as app_module
 from ovb_rc003 import config, key_mapping, logging_setup, win32_input
-from ovb_rc003.atvv_session import AudioStopped
+from ovb_rc003.atvv_session import AudioStarted, AudioStopped
 
 
 def _run(coro):
@@ -237,6 +237,41 @@ class HostHotkeyFailureSuppressesMicOpenTests(_AppWiringTestCase):
 
         self.assertEqual(self.app._ble_session.mic_open_calls, 1)
         self.assertTrue(self.app._voice.active)
+
+    def test_hid_mic_button_press_does_not_duplicate_atvv_voice_flow(self):
+        original = win32_input.send_key_combo_tap
+        win32_input.send_key_combo_tap = lambda tokens: None
+        try:
+            self.app._on_button_event("mic", True)
+        finally:
+            win32_input.send_key_combo_tap = original
+
+        self.assertEqual(self.app._ble_session.mic_open_calls, 0)
+        self.assertFalse(self.app._voice.active)
+
+    def test_hid_mic_button_is_ignored_until_ble_session_is_connected(self):
+        self.app._ble_session = None
+        original = win32_input.send_key_combo_tap
+        hotkey_calls = []
+        win32_input.send_key_combo_tap = lambda tokens: hotkey_calls.append(tokens)
+        try:
+            self.app._on_button_event("mic", True)
+        finally:
+            win32_input.send_key_combo_tap = original
+
+        self.assertEqual(hotkey_calls, [])
+        self.assertFalse(self.app._voice.active)
+
+    def test_audio_started_can_trigger_voice_when_legacy_f5_is_suppressed(self):
+        original = win32_input.send_key_combo_tap
+        win32_input.send_key_combo_tap = lambda tokens: None
+        try:
+            self.app._on_control_event(AudioStarted(session_id=1))
+        finally:
+            win32_input.send_key_combo_tap = original
+
+        self.assertTrue(self.app._voice.active)
+        self.assertEqual(self.app._ble_session.mic_open_calls, 0)
 
     def test_no_usable_endpoint_suppresses_hotkey_and_mic_open(self):
         self.app._playback = None

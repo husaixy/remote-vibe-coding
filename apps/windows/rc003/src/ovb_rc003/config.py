@@ -74,9 +74,10 @@ def default_config() -> Dict[str, Any]:
         # continue to open as RC003 rather than silently switching behavior.
         "selected_device_profile": "xiaomi-rc003",
         "gain_db": 0.0,
-        "retry_delay": 2.0,
+        "retry_delay": 5.0,
+        "max_retry_delay": 60.0,
         "voice_shortcut_enabled": True,
-        "voice_hotkey": "ctrl+shift+u",
+        "voice_hotkey": "ralt+space",
         "voice_trigger_mode": "toggle",
         # Empty until the user explicitly picks one in settings; voice fails
         # closed while this is empty (see audio_output.resolve_selected_endpoint).
@@ -124,15 +125,38 @@ def load_config(path: Path) -> Dict[str, Any]:
             stored = json.load(handle)
         _assert_no_forbidden_keys(stored)
         config.update(stored)
+    _normalize_voice_hotkey(config)
     return config
 
 
 def save_config(path: Path, config: Dict[str, Any]) -> None:
     _assert_no_forbidden_keys(config)
+    persisted = dict(config)
+    _normalize_voice_hotkey(persisted)
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as handle:
-        json.dump(config, handle, indent=2, sort_keys=True)
+        json.dump(persisted, handle, indent=2, sort_keys=True)
         handle.write("\n")
+
+
+def _normalize_voice_hotkey(config: Dict[str, Any]) -> None:
+    """Keep the two built-in voice modes paired with their real shortcuts.
+
+    This only repairs the two built-in values. A user-supplied shortcut such
+    as ``win+h`` remains untouched, while stale ``toggle+ralt`` and
+    ``hold+ralt+space`` combinations cannot reach the runtime.
+    """
+
+    current = str(config.get("voice_hotkey", "")).strip().lower()
+    if current not in {"ralt", "ralt+space"}:
+        return
+    from . import key_mapping
+
+    try:
+        mode = key_mapping.VoiceTriggerMode(config.get("voice_trigger_mode"))
+    except ValueError:
+        return
+    config["voice_hotkey"] = key_mapping.voice_hotkey_for_trigger_mode(mode)
 
 
 def default_key_bindings() -> Dict[str, Any]:

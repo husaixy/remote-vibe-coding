@@ -28,15 +28,14 @@ verified against real hardware:
 - ``RIM_TYPEKEYBOARD``: an already-translated keyboard event (a VK code +
   up/down flag). Windows only produces this for HID Keyboard-page usages it
   recognizes and has a standard VK translation for. ``KEYBOARD_VK_TO_BUTTON``
-  below covers only the RC003 buttons whose HID usage IDs have a
-  well-documented standard Windows VK translation (arrows, Enter, Home,
-  Application/Menu, and the three keyboard-page volume usages). The
-  "power" and "tv" buttons use HID usage IDs (0x66, 0x35) that do not have
-  a well-documented standard translation, and the "back" button's usage
-  (0x00F1) is known from upstream's own research to fall outside the
-  translated range entirely (see frida_compat.py) - all three may simply
-  produce no event via this path, which is a safe/inert failure (the
-  button does nothing) rather than a crash.
+  below covers the RC003 buttons whose HID usage IDs have standard or
+  real-device-observed Windows VK translations (arrows, Enter, Home,
+  Application/Menu, microphone as F5, TV as OEM_3, power as Sleep, and the
+  three keyboard-page volume usages). The "back" button's usage (0x00F1)
+  is known from upstream's own research to fall outside the translated
+  range entirely (see frida_compat.py), so it may produce no event via
+  this path; that is a safe/inert failure (the button does nothing) rather
+  than a crash.
 - ``RIM_TYPEHID``: raw, untranslated report bytes, decodable via
   ``hid_identity.decode_active_usages``. Windows only takes this path for
   usage pages it does not have a specific input-class driver for. Whether
@@ -55,6 +54,7 @@ import sys
 import threading
 import uuid
 from ctypes import wintypes
+from dataclasses import dataclass
 from typing import Callable, FrozenSet, List, Optional
 
 from . import hid_identity
@@ -76,9 +76,10 @@ class RAWINPUTDEVICELIST(ctypes.Structure):
 
 # HID Keyboard/Keypad page (0x07) usage -> standard Windows virtual-key code,
 # for the RC003 button usages that have a well-documented standard
-# translation. See module docstring for which buttons are NOT included here
-# and why.
+# translation, plus the real-device-observed microphone fallback where
+# Windows reports the physical voice key as VK_F5.
 KEYBOARD_VK_TO_BUTTON = {
+    0x74: "mic",  # VK_F5, observed for the RC003 microphone/voice key
     0x27: "right",  # VK_RIGHT
     0x25: "left",  # VK_LEFT
     0x28: "down",  # VK_DOWN
@@ -86,9 +87,25 @@ KEYBOARD_VK_TO_BUTTON = {
     0x0D: "ok",  # VK_RETURN
     0x24: "home",  # VK_HOME
     0x5D: "menu",  # VK_APPS (the standard "Application"/context-menu key)
+    0xC0: "tv",  # VK_OEM_3, HID usage 0x35 on US layouts
+    0x5F: "power",  # VK_SLEEP, common translation for keyboard power usage
     0xAD: "volume_mute",  # VK_VOLUME_MUTE
     0xAF: "volume_up",  # VK_VOLUME_UP
     0xAE: "volume_down",  # VK_VOLUME_DOWN
+}
+
+# Windows can surface the RC003's non-text remote controls as RAWKEYBOARD
+# events with VKey=0xFF (no translated virtual key) while retaining the HID
+# keyboard scan code.  These are the standard extended-key scan codes used by
+# Windows for the same consumer controls.  Keeping this mapping at the Raw
+# Input seam preserves the physical-device event instead of suppressing it or
+# guessing from the active foreground window.
+KEYBOARD_MAKECODE_TO_BUTTON = {
+    0x5E: "power",       # E0 5E / Power
+    0x6A: "back",        # E0 6A / Browser Back
+    0x30: "volume_up",   # E0 30 / Volume Up
+    0x2E: "volume_down", # E0 2E / Volume Down
+    0x20: "volume_mute", # E0 20 / Volume Mute
 }
 
 RAW_INPUT_USAGE_PAGES = (
@@ -201,6 +218,28 @@ def _get_device_name(user32, device_handle, ridi_devicename: int) -> Optional[st
 ButtonEventCallback = Callable[[str, bool], None]  # (button_id, is_pressed)
 
 
+@dataclass(frozen=True)
+class RawInputEvent:
+    """One physical RC003 Raw Input edge, including its observed values.
+
+    ``button_id`` is optional because the settings page must be able to show
+    an unknown real event instead of silently discarding it before the user
+    can decide how to map it.
+    """
+
+    source: str
+    is_pressed: bool
+    button_id: Optional[str] = None
+    vkey: Optional[int] = None
+    make_code: Optional[int] = None
+    flags: Optional[int] = None
+    message: Optional[int] = None
+    report: bytes = b""
+
+
+RawInputEventCallback = Callable[[RawInputEvent], None]
+
+
 class RawInputButtonListener:
     """Owns a hidden message-only window, registers Raw Input for the
     RC003's device-scoped events, and emits button press/release edges.
@@ -246,8 +285,13 @@ class RawInputButtonListener:
     ``stop()`` raises in that case instead of returning as if it succeeded.
     """
 
-    def __init__(self, on_button_event: ButtonEventCallback):
+    def __init__(
+        self,
+        on_button_event: ButtonEventCallback,
+        on_raw_event: Optional[RawInputEventCallback] = None,
+    ):
         self._on_button_event = on_button_event
+        self._on_raw_event = on_raw_event
         self._thread: Optional[threading.Thread] = None
         self._stop_event = threading.Event()
         self._hwnd = None
@@ -766,11 +810,24 @@ class RawInputButtonListener:
             "<HHHHII", body, 0
         )
         button = KEYBOARD_VK_TO_BUTTON.get(vkey)
-        if button is None:
-            return
+        if button is None and vkey == 0xFF:
+            button = KEYBOARD_MAKECODE_TO_BUTTON.get(_make_code)
         WM_KEYUP = 0x0101
         WM_SYSKEYUP = 0x0105
         is_pressed = message not in (WM_KEYUP, WM_SYSKEYUP)
+        self._emit_raw_event(
+            RawInputEvent(
+                source="keyboard",
+                is_pressed=is_pressed,
+                button_id=button,
+                vkey=vkey,
+                make_code=_make_code,
+                flags=flags,
+                message=message,
+            )
+        )
+        if button is None:
+            return
         if is_pressed:
             self._active_keyboard_buttons = self._active_keyboard_buttons | {button}
         else:
@@ -791,9 +848,34 @@ class RawInputButtonListener:
             self._active_hid_usages = current
             for usage in pressed:
                 button = hid_identity.usage_to_button(usage)
+                self._emit_raw_event(
+                    RawInputEvent(
+                        source="hid",
+                        is_pressed=True,
+                        button_id=button,
+                        report=report,
+                    )
+                )
                 if button:
                     self._on_button_event(button, True)
             for usage in released:
                 button = hid_identity.usage_to_button(usage)
+                self._emit_raw_event(
+                    RawInputEvent(
+                        source="hid",
+                        is_pressed=False,
+                        button_id=button,
+                        report=report,
+                    )
+                )
                 if button:
                     self._on_button_event(button, False)
+
+    def _emit_raw_event(self, event: RawInputEvent) -> None:
+        if self._on_raw_event is None:
+            return
+        try:
+            self._on_raw_event(event)
+        except Exception:
+            # Observability must never terminate the Raw Input message loop.
+            pass

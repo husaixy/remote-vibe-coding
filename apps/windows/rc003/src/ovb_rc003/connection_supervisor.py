@@ -39,13 +39,18 @@ class ConnectionSupervisor:
         connect: ConnectFn,
         cleanup: CleanupFn,
         retry_delay: float = 2.0,
+        max_retry_delay: Optional[float] = None,
         logger: Optional[logging.Logger] = None,
         sleep: SleepFn = asyncio.sleep,
         loop: Optional[asyncio.AbstractEventLoop] = None,
     ) -> None:
         self._connect = connect
         self._cleanup = cleanup
-        self._retry_delay = retry_delay
+        self._retry_delay = max(0.0, retry_delay)
+        if max_retry_delay is None:
+            max_retry_delay = self._retry_delay
+        self._max_retry_delay = max(self._retry_delay, max_retry_delay)
+        self._next_retry_delay = self._retry_delay
         self._logger = logger
         self._sleep = sleep
         # Captured at construction time (must happen on the loop that will
@@ -78,8 +83,11 @@ class ConnectionSupervisor:
         while not self._stopping:
             self.attempt_count += 1
             self._disconnect_event.clear()
+            connected = False
             try:
+                self.last_error = None
                 await self._connect()
+                connected = True
                 await self._disconnect_event.wait()
             except asyncio.CancelledError:
                 raise
@@ -95,7 +103,15 @@ class ConnectionSupervisor:
 
             if self._stopping:
                 break
-            await self._sleep(self._retry_delay)
+            delay = self._next_retry_delay
+            if connected:
+                self._next_retry_delay = self._retry_delay
+            else:
+                self._next_retry_delay = min(
+                    self._max_retry_delay,
+                    max(self._retry_delay, self._next_retry_delay * 2),
+                )
+            await self._sleep(delay)
 
     async def stop(self) -> None:
         """Ends the loop after its current cleanup finishes. Safe to call

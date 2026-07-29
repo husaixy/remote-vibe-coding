@@ -64,18 +64,18 @@ from . import (
     ble_transport_winrt,
     config,
     connection_supervisor,
-    frida_compat,
     hid_identity,
     hotkey,
     identity,
     key_mapping,
+    legacy_key_suppressor_windows,
     logging_setup,
     raw_input_windows,
     voice_controller,
     win32_input,
     win32_keys,
 )
-from .atvv_session import AudioStarted, AudioStopped, MicButtonPressed
+from .atvv_session import AudioStarted, AudioStopped, CapsReceived, MicButtonPressed
 
 
 class CleanupIncompleteError(RuntimeError):
@@ -100,13 +100,16 @@ class RC003App:
         self._voice_hotkey = hotkey.HotkeySpec.parse(self._config["voice_hotkey"])
         self._ble_session: Optional[ble_transport_winrt.RC003BleSession] = None
         self._hid_listener: Optional[raw_input_windows.RawInputButtonListener] = None
+        self._legacy_key_suppressor: Optional[
+            legacy_key_suppressor_windows.LegacyKeySuppressor
+        ] = None
         self._playback: Optional[audio_playback.EndpointPlaybackSink] = None
-        self._back_key_compat = frida_compat.BackKeyCompatLayer()
 
         self._supervisor = connection_supervisor.ConnectionSupervisor(
             connect=self._connect_once,
             cleanup=self._cleanup_once,
             retry_delay=float(self._config.get("retry_delay", 2.0)),
+            max_retry_delay=float(self._config.get("max_retry_delay", 60.0)),
             logger=self._logger,
         )
 
@@ -137,10 +140,6 @@ class RC003App:
 
         self._start_hid_listener()
 
-        self._logger.info(
-            "startup: back-key compatibility layer status=%s",
-            self._back_key_compat.status,
-        )
 
     def _start_hid_listener(self) -> None:
         """Best-effort: buttons fail closed independently of BLE/voice.
@@ -191,6 +190,20 @@ class RC003App:
                 raise
             self._logger.info("startup: Raw Input listener failed to start: %s", exc)
             self._hid_listener = None
+            return
+
+        # RC003's voice key is reported by Windows' keyboard class as F5 as
+        # well as through ATVV.  The ATVV event is the authoritative voice
+        # mapping; this narrowly intercepts only that legacy F5 leak so the
+        # host does not receive a second, unrelated F5 action.
+        self._legacy_key_suppressor = legacy_key_suppressor_windows.LegacyKeySuppressor({0x74})
+        try:
+            self._legacy_key_suppressor.start()
+            self._logger.info("startup: RC003 voice legacy-key guard enabled")
+        except legacy_key_suppressor_windows.LegacyKeySuppressorUnavailableError as exc:
+            self._logger.warning("startup: RC003 voice legacy-key guard unavailable: %s", exc)
+            self._legacy_key_suppressor = None
+
 
     async def _cleanup_once(self) -> None:
         """Every step is independently attempted: one failing must never
@@ -230,6 +243,14 @@ class RC003App:
                 failures.append("Raw Input listener did not stop; owner retained")
                 # self._hid_listener is intentionally NOT cleared here: it
                 # may still be a live thread/window.
+
+        if self._legacy_key_suppressor is not None:
+            try:
+                self._legacy_key_suppressor.stop()
+                self._legacy_key_suppressor = None
+            except Exception:
+                self._logger.exception("cleanup: stopping RC003 voice legacy-key guard failed")
+                failures.append("RC003 voice legacy-key guard did not stop; owner retained")
 
         if self._ble_session is not None:
             try:
@@ -274,6 +295,10 @@ class RC003App:
     #    unmapped, see frida_compat.py) ------------------------------------
 
     def _on_button_event(self, button_id: str, is_pressed: bool) -> None:
+        if button_id == "mic":
+            if is_pressed:
+                self._logger.info("voice HID fallback ignored; waiting for ATVV audio start")
+            return
         if not is_pressed:
             return  # this candidate maps simple taps; hold-repeat is future work
         action_dict = self._bindings.get("bindings", {}).get(button_id)
@@ -311,13 +336,23 @@ class RC003App:
     # -- ATVV control-channel events (mic button + audio start/stop) ------
 
     def _on_control_event(self, event: object) -> None:
-        if isinstance(event, MicButtonPressed):
+        if isinstance(event, CapsReceived):
+            self._logger.info(
+                "voice capabilities received: version=0x%04x sample_rate=%s frame_size=%s",
+                event.capabilities.version,
+                event.capabilities.sample_rate,
+                event.capabilities.frame_size,
+            )
+        elif isinstance(event, MicButtonPressed):
+            self._logger.info("voice mic trigger received from ATVV control channel")
             self._handle_mic_button_pressed()
         elif isinstance(event, AudioStarted):
-            pass  # playback is already opened (or voice already failed
-            # closed) by _handle_mic_button_pressed before MIC_OPEN was
-            # even sent - AudioStarted is purely informational here.
+            self._logger.info("voice audio started")
+            if not self._voice.active:
+                self._logger.info("voice audio start used as microphone trigger")
+                self._handle_mic_button_pressed(send_device_open=False)
         elif isinstance(event, AudioStopped):
+            self._logger.info("voice audio stopped")
             action = self._voice.on_audio_stopped()
             if action is not None and not self._apply_voice_action(action):
                 # Same rule as _cleanup_once(): on_audio_stopped() already
@@ -335,7 +370,7 @@ class RC003App:
                 )
                 self._supervisor.request_reconnect()
 
-    def _handle_mic_button_pressed(self) -> None:
+    def _handle_mic_button_pressed(self, *, send_device_open: bool = True) -> None:
         """Resolve and open the user-selected output endpoint FIRST; only
         send the hotkey if that succeeds, and only send MIC_OPEN if the
         hotkey itself fully delivered. This is the fail-closed ordering
@@ -346,6 +381,10 @@ class RC003App:
         failure at either step suppresses MIC_OPEN, not just a missing
         endpoint.
         """
+
+        if self._ble_session is None:
+            self._logger.info("voice ignored: BLE voice session is not connected")
+            return
 
         if not self._open_playback_for_new_session():
             self._logger.info(
@@ -365,7 +404,7 @@ class RC003App:
             )
             return
 
-        if self._ble_session is not None:
+        if send_device_open and self._ble_session is not None:
             self._ble_session.send_mic_open_threadsafe()
 
     def _apply_voice_action(self, action: voice_controller.VoiceHostAction) -> bool:

@@ -21,6 +21,7 @@ from ovb_rc003.settings_ui import (
     default_display_state,
     describe_launch_result,
     describe_log_open_result,
+    voice_hotkey_for_trigger_mode,
 )
 
 
@@ -68,6 +69,18 @@ class DisplayRoundTripTests(unittest.TestCase):
     def test_unknown_key_is_rejected_before_it_can_break_runtime_input(self):
         with self.assertRaises(hotkey.HotkeyParseError):
             _display_to_action("ctrl+not_a_real_key")
+
+
+class VoiceTriggerPresetTests(unittest.TestCase):
+    def test_trigger_modes_have_matching_physical_shortcuts(self):
+        self.assertEqual(
+            voice_hotkey_for_trigger_mode(key_mapping.VoiceTriggerMode.TOGGLE),
+            "ralt+space",
+        )
+        self.assertEqual(
+            voice_hotkey_for_trigger_mode(key_mapping.VoiceTriggerMode.HOLD),
+            "ralt",
+        )
 
 
 class EndpointDisplayTests(unittest.TestCase):
@@ -156,7 +169,7 @@ class BuildSaveModelTests(unittest.TestCase):
             base_bindings=self.base_bindings,
         )
         self.assertEqual(new_bindings["bindings"]["mic"]["kind"], "voice")
-        self.assertEqual(new_config["voice_hotkey"], "ctrl+shift+u")
+        self.assertEqual(new_config["voice_hotkey"], "ralt+space")
 
     def test_invalid_hotkey_raises_with_no_button_id(self):
         with self.assertRaises(SettingsValidationError) as ctx:
@@ -270,7 +283,7 @@ class DefaultDisplayStateTests(unittest.TestCase):
 
     def test_trigger_mode_defaults_to_toggle_label(self):
         state = default_display_state()
-        self.assertIn("toggle", state.trigger_mode_label)
+        self.assertIn("免按住", state.trigger_mode_label)
 
 
 class DescribeLaunchResultTests(unittest.TestCase):

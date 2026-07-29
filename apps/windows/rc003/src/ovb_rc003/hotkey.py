@@ -12,8 +12,23 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Tuple
 
-_MODIFIER_ORDER = ("ctrl", "shift", "alt", "win")
+from . import key_mapping
+
+_MODIFIER_ORDER = (
+    "ctrl", "shift", "alt", "win",
+    "lctrl", "rctrl", "lshift", "rshift", "lalt", "ralt", "lwin", "rwin",
+)
 _VALID_MODIFIERS = frozenset(_MODIFIER_ORDER)
+_TOKEN_ALIASES = {
+    "left_ctrl": "lctrl",
+    "right_ctrl": "rctrl",
+    "left_shift": "lshift",
+    "right_shift": "rshift",
+    "left_alt": "lalt",
+    "right_alt": "ralt",
+    "left_win": "lwin",
+    "right_win": "rwin",
+}
 
 
 class HotkeyParseError(ValueError):
@@ -40,9 +55,19 @@ class HotkeySpec:
     def parse(cls, text: str) -> "HotkeySpec":
         if not text or not text.strip():
             raise HotkeyParseError("hotkey text must not be empty")
-        tokens = [token.strip().lower() for token in text.split("+") if token.strip()]
+        tokens = [
+            _TOKEN_ALIASES.get(token.strip().lower(), token.strip().lower())
+            for token in text.split("+")
+            if token.strip()
+        ]
         if not tokens:
             raise HotkeyParseError(f"could not parse hotkey: {text!r}")
+        # A directional modifier can itself be the trigger key (the voice
+        # client's HOLD mode uses the physical right Alt key alone).
+        if len(tokens) == 1 and tokens[0] in {
+            "lctrl", "rctrl", "lshift", "rshift", "lalt", "ralt", "lwin", "rwin"
+        }:
+            return cls(modifiers=(), key=tokens[0])
         modifiers = tuple(modifier for modifier in _MODIFIER_ORDER if modifier in tokens)
         keys = [token for token in tokens if token not in _VALID_MODIFIERS]
         if len(keys) != 1:
@@ -57,4 +82,6 @@ class HotkeySpec:
 # methods can bind the same chord in their own shortcut settings. Existing
 # config files keep their saved value because config.load_config() merges them
 # over default_config().
-DEFAULT_VOICE_HOTKEY = HotkeySpec(modifiers=("ctrl", "shift"), key="u")
+DEFAULT_VOICE_HOTKEY = HotkeySpec.parse(
+    key_mapping.voice_hotkey_for_trigger_mode(key_mapping.VoiceTriggerMode.TOGGLE)
+)

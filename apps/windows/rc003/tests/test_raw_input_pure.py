@@ -46,7 +46,10 @@ def _hid_report(usages):
 class RecordingListener:
     def __init__(self):
         self.events = []
-        self.listener = raw_input_windows.RawInputButtonListener(self._on_event)
+        self.raw_events = []
+        self.listener = raw_input_windows.RawInputButtonListener(
+            self._on_event, self.raw_events.append
+        )
 
     def _on_event(self, button_id, is_pressed):
         self.events.append((button_id, is_pressed))
@@ -69,6 +72,50 @@ class KeyboardBodyTests(unittest.TestCase):
         rec = RecordingListener()
         rec.listener._handle_keyboard_body(_rawkeyboard_body(0x99, WM_KEYDOWN))
         self.assertEqual(rec.events, [])
+
+    def test_real_rc003_mic_vk_f5_emits_mic_press(self):
+        rec = RecordingListener()
+        vk_f5 = 0x74
+        rec.listener._handle_keyboard_body(_rawkeyboard_body(vk_f5, WM_KEYDOWN))
+        self.assertEqual(rec.events, [("mic", True)])
+
+    def test_tv_oem3_translation_emits_tv_press(self):
+        rec = RecordingListener()
+        vk_oem_3 = 0xC0
+        rec.listener._handle_keyboard_body(_rawkeyboard_body(vk_oem_3, WM_KEYDOWN))
+        self.assertEqual(rec.events, [("tv", True)])
+
+    def test_keyboard_power_translation_emits_power_press(self):
+        rec = RecordingListener()
+        vk_sleep = 0x5F
+        rec.listener._handle_keyboard_body(_rawkeyboard_body(vk_sleep, WM_KEYDOWN))
+        self.assertEqual(rec.events, [("power", True)])
+
+    def test_keyboard_event_exposes_observed_values_to_learning_ui(self):
+        rec = RecordingListener()
+        rec.listener._handle_keyboard_body(
+            struct.pack("<HHHHII", 0x5E, 0x0002, 0, 0xFF, WM_KEYDOWN, 0)
+        )
+        self.assertEqual(len(rec.raw_events), 1)
+        self.assertEqual(rec.raw_events[0].button_id, "power")
+        self.assertEqual(rec.raw_events[0].vkey, 0xFF)
+        self.assertEqual(rec.raw_events[0].make_code, 0x5E)
+
+    def test_untranslated_power_scan_code_emits_power_press(self):
+        rec = RecordingListener()
+        rec.listener._handle_keyboard_body(
+            struct.pack("<HHHHII", 0x5E, 0x0002, 0, 0xFF, WM_KEYDOWN, 0)
+        )
+        self.assertEqual(rec.events, [("power", True)])
+
+    def test_untranslated_remote_scan_codes_map_back_and_volume(self):
+        expected = ((0x6A, "back"), (0x30, "volume_up"), (0x2E, "volume_down"))
+        for make_code, button in expected:
+            rec = RecordingListener()
+            rec.listener._handle_keyboard_body(
+                struct.pack("<HHHHII", make_code, 0x0002, 0, 0xFF, WM_KEYDOWN, 0)
+            )
+            self.assertEqual(rec.events, [(button, True)], msg=hex(make_code))
 
     def test_too_short_body_is_ignored_without_raising(self):
         rec = RecordingListener()
@@ -105,6 +152,11 @@ class HidBodyTests(unittest.TestCase):
             _rawhid_body([_hid_report([0x0028]), _hid_report([0x0028, 0x0052])])
         )
         self.assertEqual(rec.events, [("ok", True), ("up", True)])
+
+    def test_real_rc003_mic_usage_f5_emits_mic_press(self):
+        rec = RecordingListener()
+        rec.listener._handle_hid_body(_rawhid_body([_hid_report([0x003E])]))
+        self.assertEqual(rec.events, [("mic", True)])
 
 
 class StopWithoutStartTests(unittest.TestCase):

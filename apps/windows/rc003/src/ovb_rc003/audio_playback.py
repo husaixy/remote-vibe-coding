@@ -12,7 +12,7 @@ from typing import List, Optional
 
 from . import audio_output
 
-SAMPLE_RATE_HZ = 16000
+SOURCE_SAMPLE_RATE_HZ = 16000
 CHANNELS = 1
 
 
@@ -34,6 +34,7 @@ class EndpointPlaybackSink:
         self._endpoint_name = endpoint_name
         self._host_api = host_api
         self._stream = None
+        self._output_sample_rate_hz = SOURCE_SAMPLE_RATE_HZ
 
     def open(self) -> None:
         try:
@@ -44,26 +45,47 @@ class EndpointPlaybackSink:
             ) from exc
 
         device_index = self._resolve_device_index(sd)
-        try:
-            sd.check_output_settings(
-                device=device_index,
-                channels=CHANNELS,
-                dtype="int16",
-                samplerate=SAMPLE_RATE_HZ,
-            )
-        except Exception as exc:  # pragma: no cover - exercised only on Windows
-            raise audio_output.AudioOutputUnavailableError(
-                f"selected output endpoint cannot play 16 kHz mono PCM: {exc}"
-            ) from exc
+        self._output_sample_rate_hz = self._select_output_sample_rate(sd, device_index)
 
         self._stream = sd.OutputStream(
             device=device_index,
             channels=CHANNELS,
             dtype="int16",
-            samplerate=SAMPLE_RATE_HZ,
+            samplerate=self._output_sample_rate_hz,
             latency="low",
         )
         self._stream.start()
+
+    def _select_output_sample_rate(self, sd, device_index: int) -> int:
+        device = sd.query_devices()[device_index]
+        preferred = int(device.get("default_samplerate") or 0)
+        candidates = []
+        if preferred > 0:
+            candidates.append(preferred)
+        candidates.extend([SOURCE_SAMPLE_RATE_HZ, 48000, 44100])
+
+        seen = set()
+        errors = []
+        for sample_rate in candidates:
+            if sample_rate in seen:
+                continue
+            seen.add(sample_rate)
+            try:
+                sd.check_output_settings(
+                    device=device_index,
+                    channels=CHANNELS,
+                    dtype="int16",
+                    samplerate=sample_rate,
+                )
+                return sample_rate
+            except Exception as exc:  # pragma: no cover - exercised only on Windows
+                errors.append(f"{sample_rate} Hz: {exc}")
+
+        detail = "; ".join(errors) if errors else "no candidate sample rates available"
+        raise audio_output.AudioOutputUnavailableError(
+            "selected output endpoint cannot play mono int16 PCM at any supported "
+            f"sample rate ({detail})"
+        )
 
     def _resolve_device_index(self, sd) -> int:
         host_apis = sd.query_hostapis()
@@ -104,6 +126,13 @@ class EndpointPlaybackSink:
         import numpy as np  # type: ignore
 
         array = np.asarray(samples, dtype="int16").reshape(-1, 1)
+        if self._output_sample_rate_hz != SOURCE_SAMPLE_RATE_HZ and len(array) > 1:
+            ratio = self._output_sample_rate_hz / SOURCE_SAMPLE_RATE_HZ
+            output_length = max(1, int(round(len(array) * ratio)))
+            source_positions = np.arange(len(array), dtype=np.float64)
+            target_positions = np.linspace(0, len(array) - 1, output_length)
+            resampled = np.interp(target_positions, source_positions, array[:, 0])
+            array = np.rint(resampled).clip(-32768, 32767).astype("int16").reshape(-1, 1)
         self._stream.write(array)
 
     def close(self) -> None:

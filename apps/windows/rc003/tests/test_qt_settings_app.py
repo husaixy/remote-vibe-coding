@@ -330,11 +330,18 @@ class SettingsControllerTests(unittest.TestCase):
 
     def test_hotkey_text_defaults_to_the_configured_default(self):
         controller, _ = self._make_controller()
-        self.assertEqual(controller.hotkeyText, "ctrl+shift+u")
+        self.assertEqual(controller.hotkeyText, "ralt+space")
 
     def test_trigger_mode_options_has_exactly_toggle_and_hold(self):
         controller, _ = self._make_controller()
         self.assertEqual(len(controller.triggerModeOptions), 2)
+
+    def test_trigger_mode_switch_also_switches_the_paired_voice_hotkey(self):
+        controller, _ = self._make_controller()
+        controller.triggerModeIndex = 1
+        self.assertEqual(controller.hotkeyText, "ralt")
+        controller.triggerModeIndex = 0
+        self.assertEqual(controller.hotkeyText, "ralt+space")
 
     def test_launch_status_starts_as_the_not_started_constant(self):
         controller, _ = self._make_controller()
@@ -437,6 +444,66 @@ class SettingsControllerTests(unittest.TestCase):
         controller.selectButton("power")
         self.assertEqual(controller.selectedButtonId, "power")
         self.assertEqual(model.selected_button_id(), "power")
+
+    def test_real_key_detection_selects_captured_button_without_executing_mapping(self):
+        controller, model = self._make_controller()
+        callbacks = []
+
+        class FakeListener:
+            def __init__(self, _button_callback, raw_callback):
+                callbacks.append(raw_callback)
+                self.started_with = None
+                self.stop_calls = 0
+
+            def start(self, device_path):
+                self.started_with = device_path
+
+            def stop(self):
+                self.stop_calls += 1
+
+        with mock.patch.object(
+            qt_settings_app.raw_input_windows,
+            "enumerate_matching_device_paths",
+            return_value=["rc003-device-path"],
+        ), mock.patch.object(
+            qt_settings_app.raw_input_windows.hid_identity,
+            "select_single_device_path",
+            return_value="rc003-device-path",
+        ), mock.patch.object(
+            qt_settings_app.raw_input_windows,
+            "RawInputButtonListener",
+            FakeListener,
+        ):
+            controller.startKeyDetection()
+
+        self.assertTrue(controller.keyDetectionActive)
+        callbacks[0](
+            qt_settings_app.raw_input_windows.RawInputEvent(
+                source="keyboard",
+                is_pressed=True,
+                button_id="power",
+                vkey=0xFF,
+                make_code=0x5E,
+                flags=0x0002,
+                message=0x0100,
+            )
+        )
+        self.assertFalse(controller.keyDetectionActive)
+        self.assertEqual(controller.selectedButtonId, "power")
+        self.assertEqual(model.selected_button_id(), "power")
+        self.assertIn("电源键", controller.keyDetectionText)
+        self.assertIn("0x0066", controller.keyDetectionText)
+
+    def test_real_key_detection_failure_is_reported_in_the_ui(self):
+        controller, _ = self._make_controller()
+        with mock.patch.object(
+            qt_settings_app.raw_input_windows,
+            "enumerate_matching_device_paths",
+            side_effect=RuntimeError("Raw Input unavailable"),
+        ):
+            controller.startKeyDetection()
+        self.assertFalse(controller.keyDetectionActive)
+        self.assertIn("Raw Input unavailable", controller.keyDetectionText)
 
     def test_open_log_location_reports_honestly_when_never_run(self):
         controller, _ = self._make_controller()

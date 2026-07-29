@@ -189,7 +189,7 @@ Item {
                         rowSpacing: tokens.spacingSmall
 
                         Label {
-                            text: qsTr("语音键组合键 (mod+mod+key)")
+                            text: qsTr("语音键组合键（随触发方式同步）")
                             color: tokens.textPrimary
                         }
                         TextField {
@@ -202,11 +202,21 @@ Item {
                             Accessible.name: qsTr("语音热键")
                         }
 
+                        Connections {
+                            target: SettingsController
+                            function onHotkeyTextChanged() {
+                                // TextField editing breaks a declarative
+                                // binding; restore the visible field when
+                                // the trigger-mode preset changes it.
+                                hotkeyField.text = SettingsController.hotkeyText
+                            }
+                        }
+
                         Label {
                             Layout.columnSpan: 2
                             Layout.fillWidth: true
                             wrapMode: Text.WordWrap
-                            text: qsTr("新安装默认 Ctrl+Shift+U，较少与常用快捷键冲突。如果使用 Windows 系统语音键入，请改为 Win+H；使用第三方输入法时，两边设为同一组合键。")
+                            text: qsTr("免按住自动使用右 Alt+空格；长按自动使用右 Alt。切换触发方式会同步更新快捷键。")
                             color: tokens.textSecondary
                             font.pixelSize: tokens.fontSizeSmall
                         }

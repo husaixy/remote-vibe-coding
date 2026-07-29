@@ -16,6 +16,7 @@ class FakeSoundDevice:
     def __init__(self, devices, host_apis):
         self._devices = devices
         self._host_apis = host_apis
+        self.checked_settings = []
 
     def query_devices(self):
         return self._devices
@@ -23,9 +24,24 @@ class FakeSoundDevice:
     def query_hostapis(self):
         return self._host_apis
 
+    def check_output_settings(self, *, device, channels, dtype, samplerate):
+        self.checked_settings.append(
+            {
+                "device": device,
+                "channels": channels,
+                "dtype": dtype,
+                "samplerate": samplerate,
+            }
+        )
 
-def _device(name, max_output_channels, hostapi_index):
-    return {"name": name, "max_output_channels": max_output_channels, "hostapi": hostapi_index}
+
+def _device(name, max_output_channels, hostapi_index, default_samplerate=16000.0):
+    return {
+        "name": name,
+        "max_output_channels": max_output_channels,
+        "hostapi": hostapi_index,
+        "default_samplerate": default_samplerate,
+    }
 
 
 class ResolveDeviceIndexTests(unittest.TestCase):
@@ -53,6 +69,56 @@ class ResolveDeviceIndexTests(unittest.TestCase):
         sink = EndpointPlaybackSink("Nonexistent")
         with self.assertRaises(audio_output.AudioOutputUnavailableError):
             sink._resolve_device_index(sd)
+
+
+class SelectOutputSampleRateTests(unittest.TestCase):
+    def setUp(self):
+        self.host_apis = [{"name": "Windows WASAPI"}, {"name": "MME"}]
+
+    def test_prefers_the_endpoint_default_sample_rate_when_supported(self):
+        sd = FakeSoundDevice(
+            devices=[_device("CABLE Input", 2, 0, default_samplerate=48000.0)],
+            host_apis=[{"name": "Windows WASAPI"}],
+        )
+        sink = EndpointPlaybackSink("CABLE Input", host_api="Windows WASAPI")
+
+        self.assertEqual(sink._select_output_sample_rate(sd, 0), 48000)
+        self.assertEqual(sd.checked_settings[0]["samplerate"], 48000)
+
+    def test_falls_back_to_16k_when_default_sample_rate_is_rejected(self):
+        class RejectDefaultSoundDevice(FakeSoundDevice):
+            def check_output_settings(self, *, device, channels, dtype, samplerate):
+                super().check_output_settings(
+                    device=device, channels=channels, dtype=dtype, samplerate=samplerate
+                )
+                if samplerate == 48000:
+                    raise RuntimeError("unsupported")
+
+        sd = RejectDefaultSoundDevice(
+            devices=[_device("CABLE Input", 2, 0, default_samplerate=48000.0)],
+            host_apis=[{"name": "Windows WASAPI"}],
+        )
+        sink = EndpointPlaybackSink("CABLE Input", host_api="Windows WASAPI")
+
+        self.assertEqual(sink._select_output_sample_rate(sd, 0), 16000)
+        self.assertEqual([c["samplerate"] for c in sd.checked_settings], [48000, 16000])
+
+    def test_resamples_16k_pcm_to_selected_output_rate_before_writing(self):
+        class RecordingStream:
+            def __init__(self):
+                self.writes = []
+
+            def write(self, array):
+                self.writes.append(array)
+
+        stream = RecordingStream()
+        sink = EndpointPlaybackSink("CABLE Input", host_api="Windows WASAPI")
+        sink._stream = stream
+        sink._output_sample_rate_hz = 48000
+
+        sink.write([0, 16000, -16000])
+
+        self.assertEqual(stream.writes[0].shape, (9, 1))
 
     def test_ambiguous_name_without_host_api_fails_closed(self):
         sd = FakeSoundDevice(

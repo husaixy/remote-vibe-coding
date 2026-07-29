@@ -315,6 +315,44 @@ Item {
                 font.pixelSize: tokens.fontSizeSmall
             }
 
+            Rectangle {
+                Layout.fillWidth: true
+                implicitHeight: detectionRow.implicitHeight + tokens.spacingMedium * 2
+                radius: tokens.cornerRadiusSmall
+                color: tokens.fieldBackground
+                border.color: SettingsController.keyDetectionActive
+                    ? tokens.accent : tokens.border
+                border.width: SettingsController.keyDetectionActive ? 2 : 1
+
+                RowLayout {
+                    id: detectionRow
+                    anchors.fill: parent
+                    anchors.margins: tokens.spacingMedium
+                    spacing: tokens.spacingMedium
+
+                    Button {
+                        id: detectRealKeyButton
+                        objectName: "detectRealKeyButton"
+                        text: SettingsController.keyDetectionActive
+                            ? qsTr("停止检测") : qsTr("检测真实按键")
+                        highlighted: SettingsController.keyDetectionActive
+                        onClicked: SettingsController.keyDetectionActive
+                            ? SettingsController.stopKeyDetection()
+                            : SettingsController.startKeyDetection()
+                        Accessible.name: qsTr("检测真实遥控器按键")
+                    }
+
+                    Label {
+                        Layout.fillWidth: true
+                        wrapMode: Text.WordWrap
+                        text: SettingsController.keyDetectionText
+                        color: SettingsController.keyDetectionActive
+                            ? tokens.accent : tokens.textSecondary
+                        font.pixelSize: tokens.fontSizeSmall
+                    }
+                }
+            }
+
             ListView {
                 id: mappingList
                 objectName: "mappingList"  // lets a test force a specific row into view via positionViewAtIndex()
@@ -394,7 +432,7 @@ Item {
                                 id: voiceHotkeyField
                                 Layout.fillWidth: true
                                 text: SettingsController.hotkeyText
-                                placeholderText: qsTr("直接输入，例如 ctrl+shift+u 或 win+h")
+                                placeholderText: qsTr("免按住 ralt+space；长按 ralt")
                                 selectByMouse: true
                                 onEditingFinished: SettingsController.hotkeyText = text
                                 Accessible.name: qsTr("语音键组合键")

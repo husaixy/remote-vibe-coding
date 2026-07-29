@@ -47,13 +47,18 @@ from . import (
 # is also accepted via hotkey.HotkeySpec.parse.
 _PRESET_KEY_COMBOS = (
     "escape", "enter", "backspace", "up", "down", "left", "right",
-    "win+d", "shift+f10", "alt+esc", "tab", "space", "禁用",
+    "win+d", "shift+f10", "alt+esc", "ralt", "ralt+space", "tab", "space", "禁用",
 )
 
 _TRIGGER_MODE_LABELS = {
-    key_mapping.VoiceTriggerMode.TOGGLE: "开关型 (toggle)",
-    key_mapping.VoiceTriggerMode.HOLD: "按住型 (hold)",
+    key_mapping.VoiceTriggerMode.TOGGLE: "免按住（右 Alt + 空格）",
+    key_mapping.VoiceTriggerMode.HOLD: "长按（右 Alt）",
 }
+
+def voice_hotkey_for_trigger_mode(trigger_mode: key_mapping.VoiceTriggerMode) -> str:
+    """Return the physical host shortcut paired with a voice trigger mode."""
+
+    return key_mapping.voice_hotkey_for_trigger_mode(trigger_mode)
 
 # The exact display string for a "mic" (ActionKind.VOICE) button mapping.
 # _display_to_action must recognize this literal string and round-trip it
@@ -63,7 +68,7 @@ _VOICE_DISPLAY = "语音（使用专用组合键）"
 # The microphone button remains a VOICE lifecycle action (it cannot be changed
 # into an unrelated normal-key mapping), but the host chord it emits is
 # editable through SettingsController.hotkeyText in the same row.
-_MIC_ROW_DISPLAY = "触发语音（组合键可编辑）"
+_MIC_ROW_DISPLAY = "触发语音（免按住：右 Alt+空格；长按：右 Alt）"
 
 # device_profile.ALL_BUTTON_IDS also carries "volume_mute", a HID usage-table
 # entry kept for protocol compatibility (see key_mapping.py's module

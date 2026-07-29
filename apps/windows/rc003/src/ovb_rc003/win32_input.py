@@ -42,6 +42,7 @@ from . import win32_keys
 _INPUT_KEYBOARD = 1
 _KEYEVENTF_KEYUP = 0x0002
 _KEYEVENTF_EXTENDEDKEY = 0x0001
+_KEYEVENTF_SCANCODE = 0x0008
 
 # Real x64 Win32 ``INPUT`` struct shape (fixed after XRBM-014 review round 2
 # P1 #1: the union previously declared only ``KEYBDINPUT``, so
@@ -108,7 +109,20 @@ class INPUT(ctypes.Structure):
     _fields_ = [("type", ctypes.c_uint32), ("union", _INPUT_UNION)]
 
 # Keys Windows treats as "extended" for SendInput purposes.
-_EXTENDED_KEYS = frozenset({win32_keys.VK_CODES[name] for name in ("up", "down", "left", "right")})
+_EXTENDED_KEYS = frozenset(
+    {
+        win32_keys.VK_CODES[name]
+        for name in ("up", "down", "left", "right", "rctrl", "ralt", "rwin")
+    }
+)
+
+# VK_RMENU alone is layout-dependent in some consumers. The physical
+# right-Alt key is the extended 0x38 scan code (E0 38). Sending this as a
+# scan-code event makes global shortcut listeners receive a real right-Alt
+# edge instead of a generic Alt/menu gesture.
+_PHYSICAL_SCAN_CODES = {
+    win32_keys.VK_CODES["ralt"]: 0x38,
+}
 
 RawSender = Callable[[Sequence[Tuple[int, bool]]], int]
 
@@ -130,7 +144,24 @@ def _build_input_array(events: Sequence[Tuple[int, bool]]):
         flags = _KEYEVENTF_KEYUP if key_up else 0
         if vk in _EXTENDED_KEYS:
             flags |= _KEYEVENTF_EXTENDEDKEY
-        keybd_input = KEYBDINPUT(wVk=vk, wScan=0, dwFlags=flags, time=0, dwExtraInfo=0)
+        scan_code = _PHYSICAL_SCAN_CODES.get(vk)
+        if scan_code is not None:
+            flags |= _KEYEVENTF_SCANCODE | _KEYEVENTF_EXTENDEDKEY
+            keybd_input = KEYBDINPUT(
+                wVk=0,
+                wScan=scan_code,
+                dwFlags=flags,
+                time=0,
+                dwExtraInfo=0,
+            )
+        else:
+            keybd_input = KEYBDINPUT(
+                wVk=vk,
+                wScan=0,
+                dwFlags=flags,
+                time=0,
+                dwExtraInfo=0,
+            )
         array[index] = INPUT(type=_INPUT_KEYBOARD, union=_INPUT_UNION(ki=keybd_input))
     return array, INPUT
 

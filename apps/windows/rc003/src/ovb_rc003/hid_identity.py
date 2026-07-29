@@ -63,13 +63,28 @@ def select_single_device_path(paths: Sequence[str]) -> str:
 def device_path_matches_rc003(device_interface_path: str) -> bool:
     """Check a Windows HID device interface path (e.g. from
     GetRawInputDeviceInfoW/RIDI_DEVICENAME or hidapi's ``path``) for the
-    RC003 VID/PID, case-insensitively.
+    RC003 VID/PID, case-insensitively. Windows uses both the classic
+    ``VID_2717&PID_32B8`` spelling and the BLE HID collection spelling
+    ``Dev_VID&012717_PID&32B8``.
     """
 
     low = device_interface_path.lower()
-    vid_token = f"vid_{device_profile.HID_VENDOR_ID:04x}"
-    pid_token = f"pid_{device_profile.HID_PRODUCT_ID:04x}"
-    return vid_token in low and pid_token in low
+    classic_vid_token = f"vid_{device_profile.HID_VENDOR_ID:04x}"
+    classic_pid_token = f"pid_{device_profile.HID_PRODUCT_ID:04x}"
+    if classic_vid_token in low and classic_pid_token in low:
+        return True
+
+    # BLE HID collections are exposed by Windows as ``Dev_VID`` followed by
+    # the device-id vendor token (the RC003 uses the observed ``012717``
+    # spelling), then ``PID`` with the product token. Keep the prefix and
+    # both tokens together so an unrelated HID path cannot match by
+    # containing a VID and PID in separate components.
+    ble_vid_tokens = (
+        f"dev_vid&{device_profile.HID_VENDOR_ID:06x}",
+        f"dev_vid&01{device_profile.HID_VENDOR_ID:04x}",
+    )
+    ble_pid_token = f"pid&{device_profile.HID_PRODUCT_ID:04x}"
+    return any(token in low for token in ble_vid_tokens) and ble_pid_token in low
 
 
 def normalize_device_path(device_interface_path: str) -> str:

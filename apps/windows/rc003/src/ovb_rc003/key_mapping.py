@@ -44,6 +44,18 @@ class VoiceTriggerMode(str, Enum):
     HOLD = "hold"
 
 
+VOICE_HOTKEY_PRESETS = {
+    VoiceTriggerMode.TOGGLE: "ralt+space",
+    VoiceTriggerMode.HOLD: "ralt",
+}
+
+
+def voice_hotkey_for_trigger_mode(trigger_mode: VoiceTriggerMode) -> str:
+    """Return the host shortcut paired with a voice trigger mode."""
+
+    return VOICE_HOTKEY_PRESETS[trigger_mode]
+
+
 @dataclass(frozen=True)
 class ButtonAction:
     kind: ActionKind

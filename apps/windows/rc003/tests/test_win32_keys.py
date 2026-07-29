@@ -35,7 +35,10 @@ class ResolveVkCodesTests(unittest.TestCase):
         for action in key_mapping.default_button_actions().values():
             if action.keys:
                 win32_keys.resolve_vk_codes(action.keys)  # raises on failure
-        win32_keys.resolve_vk_codes(("win", "h"))
+        win32_keys.resolve_vk_codes(("ralt", "space"))
+
+    def test_right_alt_alias_and_code_are_available(self):
+        self.assertEqual(win32_keys.resolve_vk_codes(("right_alt",)), [0xA5])
 
 
 if __name__ == "__main__":

@@ -30,14 +30,17 @@ HID_VENDOR_ID = 0x2717
 HID_PRODUCT_ID = 0x32B8
 
 # HID Keyboard-page (Usage Page 0x07) usage IDs the RC003 reports for its
-# physical buttons, excluding the microphone (which is signaled over the ATVV
-# GATT control channel, not a keyboard usage). One button ("back") sits
+# physical buttons. The microphone button is normally expected to be signaled
+# over the ATVV GATT control channel, but real Windows RC003 hardware also
+# reports it as Keyboard F5 (usage 0x003E), so it is included here as a
+# host-trigger fallback. One button ("back") sits
 # outside the standard translated usage range on Windows; see
 # ovb_rc003.frida_compat for the documented, currently-unwired compatibility
 # gap.
 HID_USAGE_PAGE = 0x07
 
 BUTTON_USAGE_IDS = {
+    0x003E: "mic",
     0x00F1: "back",
     0x0028: "ok",
     0x0035: "tv",
@@ -53,6 +56,5 @@ BUTTON_USAGE_IDS = {
     0x0081: "volume_down",
 }
 
-# All logical buttons this client knows about, including "mic" which arrives
-# over ATVV control opcodes rather than a HID usage.
+# All logical buttons this client knows about.
 ALL_BUTTON_IDS = frozenset(set(BUTTON_USAGE_IDS.values()) | {"mic"})

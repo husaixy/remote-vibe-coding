@@ -70,10 +70,9 @@ class HidUsageDisplayTests(unittest.TestCase):
             remote_layout.hid_usage_display("power"), "0x0066"
         )
 
-    def test_mic_never_fabricates_a_hid_usage_id(self):
+    def test_mic_displays_its_observed_keyboard_fallback_usage_id(self):
         text = remote_layout.hid_usage_display("mic")
-        self.assertNotIn("0x", text)
-        self.assertIn("ATVV", text)
+        self.assertEqual(text, "0x003E")
 
     def test_every_ordinary_button_usage_round_trips_through_device_profile(self):
         for usage, button_id in device_profile.BUTTON_USAGE_IDS.items():

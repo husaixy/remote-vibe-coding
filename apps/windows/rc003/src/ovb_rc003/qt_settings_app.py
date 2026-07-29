@@ -110,6 +110,7 @@ from . import (
     key_mapping,
     logging_setup,
     remote_layout,
+    raw_input_windows,
     resources,
     settings_ui,
     shell_targets,
@@ -576,6 +577,9 @@ def _load_qt_classes() -> dict:
         selectedDeviceIndexChanged = Signal()
         selectedDeviceChanged = Signal()
         djiMicStatusTextChanged = Signal()
+        keyDetectionActiveChanged = Signal()
+        keyDetectionTextChanged = Signal()
+        _rawKeyDetected = Signal(str, str)
 
         _TRIGGER_MODE_ORDER = tuple(key_mapping.VoiceTriggerMode)
         _DEVICE_ORDER = tuple(profile.device_id for profile in device_catalog.DEVICE_PROFILES)
@@ -611,6 +615,12 @@ def _load_qt_classes() -> dict:
                 else -1
             )
             self._dji_mic_status_text = ""
+            self._key_detection_listener = None
+            self._key_detection_active = False
+            self._key_detection_text = (
+                "尚未检测真实按键。点击“检测真实按键”后，再按一次遥控器按键。"
+            )
+            self._rawKeyDetected.connect(self._on_raw_key_detected)
 
             self._endpoint_options: List[str] = []
             self._selected_endpoint_index = -1
@@ -687,6 +697,44 @@ def _load_qt_classes() -> dict:
             self._error_message = text
             self.errorMessageChanged.emit()
 
+        def _set_key_detection_text(self, text: str) -> None:
+            if text != self._key_detection_text:
+                self._key_detection_text = text
+                self.keyDetectionTextChanged.emit()
+
+        def _on_raw_input_event(self, event: raw_input_windows.RawInputEvent) -> None:
+            if not event.is_pressed:
+                return
+            if event.source == "keyboard":
+                details = (
+                    f"Raw Input 键盘事件：VKey=0x{event.vkey:02X}, "
+                    f"MakeCode=0x{event.make_code:02X}, Flags=0x{event.flags:04X}"
+                )
+            else:
+                details = f"Raw Input HID 报告：{event.report.hex(' ')}"
+            self._rawKeyDetected.emit(event.button_id or "", details)
+
+        def _on_raw_key_detected(self, button_id: str, details: str) -> None:
+            """Handle one physical press on the Qt GUI thread.
+
+            Raw Input emits only a logical button id; this detector never
+            executes the configured action. It stops after the first press,
+            selects the corresponding row, and leaves the user in control of
+            choosing/saving the Windows mapping.
+            """
+
+            self.stopKeyDetection()
+            if button_id:
+                self.selectButton(button_id)
+                display_name = remote_layout.BUTTON_DISPLAY_NAMES.get(button_id, button_id)
+                usage = remote_layout.hid_usage_display(button_id)
+                result = f"已捕获真实按键：{display_name}（{usage}）。"
+            else:
+                result = "已捕获未预置映射的真实按键。"
+            self._set_key_detection_text(
+                f"{result}{details} 现在可设置该行的 Windows 映射并保存。"
+            )
+
         def _save(self) -> bool:
             """Same validation as before (settings_ui.build_save_model);
             returns True only on an actual successful save, so
@@ -753,6 +801,8 @@ def _load_qt_classes() -> dict:
         def _set_trigger_mode_index(self, value: int) -> None:
             if value != self._trigger_mode_index and 0 <= value < len(self._TRIGGER_MODE_ORDER):
                 self._trigger_mode_index = value
+                trigger_mode = self._TRIGGER_MODE_ORDER[value]
+                self._set_hotkey_text(settings_ui.voice_hotkey_for_trigger_mode(trigger_mode))
                 self.triggerModeIndexChanged.emit()
 
         triggerModeIndex = Property(
@@ -873,6 +923,24 @@ def _load_qt_classes() -> dict:
             str, _get_dji_mic_status_text, notify=djiMicStatusTextChanged
         )
 
+        def _get_key_detection_active(self) -> bool:
+            return self._key_detection_active
+
+        keyDetectionActive = Property(
+            bool,
+            _get_key_detection_active,
+            notify=keyDetectionActiveChanged,
+        )
+
+        def _get_key_detection_text(self) -> str:
+            return self._key_detection_text
+
+        keyDetectionText = Property(
+            str,
+            _get_key_detection_text,
+            notify=keyDetectionTextChanged,
+        )
+
         def _get_dji_control_rows(self) -> List[dict]:
             return [
                 {
@@ -913,6 +981,50 @@ def _load_qt_classes() -> dict:
         @Slot(result=bool)
         def saveSettings(self) -> bool:
             return self._save()
+
+        @Slot()
+        def startKeyDetection(self) -> None:
+            """Listen for one real RC003 press without executing its action."""
+
+            if self._key_detection_active:
+                return
+            if self._selected_device_id() != device_catalog.RC003_ID:
+                self._set_key_detection_text("当前设备不是 RC003，无法检测遥控器按键。")
+                return
+            try:
+                paths = raw_input_windows.enumerate_matching_device_paths()
+                device_path = raw_input_windows.hid_identity.select_single_device_path(paths)
+                listener = raw_input_windows.RawInputButtonListener(
+                    lambda *_: None,
+                    self._on_raw_input_event,
+                )
+                listener.start(device_path)
+            except Exception as exc:  # noqa: BLE001 - surface failure in the UI
+                self._key_detection_listener = None
+                self._key_detection_active = False
+                self.keyDetectionActiveChanged.emit()
+                self._set_key_detection_text(f"无法启动真实按键检测：{exc}")
+                return
+
+            self._key_detection_listener = listener
+            self._key_detection_active = True
+            self.keyDetectionActiveChanged.emit()
+            self._set_key_detection_text(
+                "正在监听 RC003。请现在按一次遥控器按键；不会执行该键的映射动作。"
+            )
+
+        @Slot()
+        def stopKeyDetection(self) -> None:
+            listener = self._key_detection_listener
+            self._key_detection_listener = None
+            if listener is not None:
+                try:
+                    listener.stop()
+                except Exception as exc:  # noqa: BLE001 - report, do not crash Qt
+                    self._set_key_detection_text(f"停止真实按键检测时出错：{exc}")
+            if self._key_detection_active:
+                self._key_detection_active = False
+                self.keyDetectionActiveChanged.emit()
 
         @Slot()
         def saveAndLaunch(self) -> None:
@@ -1500,6 +1612,7 @@ def run_settings_window() -> int:
 
         return app.exec()
     finally:
+        controller.stopKeyDetection()
         # XRBM-035: called HERE, synchronously - whether app.exec()
         # returned normally, engine.load() raised, rootObjects() was empty,
         # or anything else in this block raised - and BEFORE this

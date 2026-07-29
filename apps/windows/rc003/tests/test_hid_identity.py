@@ -19,6 +19,17 @@ class DevicePathMatchTests(unittest.TestCase):
         path = r"\\?\hid#vid_2717&pid_32b8#7&abc#{guid}"
         self.assertTrue(hid_identity.device_path_matches_rc003(path))
 
+    def test_matches_windows_ble_hid_dev_vid_pid_path(self):
+        # Windows exposes this BLE HID collection as
+        # ``..._Dev_VID&012717_PID&32B8...`` rather than the classic
+        # ``VID_2717&PID_32B8`` spelling. This is the real path shape observed
+        # on the RC003 machine during diagnosis.
+        path = (
+            r"\\?\HID#{00001812-0000-1000-8000-00805f9b34fb}_Dev_"
+            r"VID&012717_PID&32B8_REV&00A4_device#instance#{guid}"
+        )
+        self.assertTrue(hid_identity.device_path_matches_rc003(path))
+
     def test_rejects_other_vendor(self):
         path = r"\\?\HID#VID_0001&PID_0002#7&abc#{guid}"
         self.assertFalse(hid_identity.device_path_matches_rc003(path))
@@ -84,6 +95,12 @@ class ReportDecodeTests(unittest.TestCase):
         active = hid_identity.decode_active_usages(report)
         self.assertIn(0x00F1, active)
         self.assertEqual(hid_identity.usage_to_button(0x00F1), "back")
+
+    def test_real_rc003_mic_f5_usage_is_tracked(self):
+        report = _report([0x003E])
+        active = hid_identity.decode_active_usages(report)
+        self.assertIn(0x003E, active)
+        self.assertEqual(hid_identity.usage_to_button(0x003E), "mic")
 
 
 class DiffUsagesTests(unittest.TestCase):
