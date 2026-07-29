@@ -29,7 +29,7 @@ from pathlib import Path
 
 from ovb_rc003 import app as app_module
 from ovb_rc003 import config, key_mapping, logging_setup, win32_input
-from ovb_rc003.atvv_session import AudioStarted, AudioStopped
+from ovb_rc003.atvv_session import AudioStarted, AudioStopped, MicButtonPressed
 
 
 def _run(coro):
@@ -270,6 +270,20 @@ class HostHotkeyFailureSuppressesMicOpenTests(_AppWiringTestCase):
         finally:
             win32_input.send_key_combo_tap = original
 
+        self.assertTrue(self.app._voice.active)
+        self.assertEqual(self.app._ble_session.mic_open_calls, 0)
+
+    def test_late_mic_button_after_audio_start_does_not_send_a_second_alt(self):
+        hotkey_calls = []
+        original = win32_input.send_key_combo_tap
+        win32_input.send_key_combo_tap = lambda tokens: hotkey_calls.append(tokens)
+        try:
+            self.app._on_control_event(AudioStarted(session_id=1))
+            self.app._on_control_event(MicButtonPressed())
+        finally:
+            win32_input.send_key_combo_tap = original
+
+        self.assertEqual(hotkey_calls, [("ralt", "space")])
         self.assertTrue(self.app._voice.active)
         self.assertEqual(self.app._ble_session.mic_open_calls, 0)
 

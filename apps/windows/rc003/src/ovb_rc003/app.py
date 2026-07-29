@@ -386,6 +386,15 @@ class RC003App:
             self._logger.info("voice ignored: BLE voice session is not connected")
             return
 
+        # ATVV may report the physical mic press and AUDIO_STARTED in either
+        # order.  AUDIO_STARTED already opens the host voice action, so a
+        # late MIC_BUTTON must not send a second shortcut sequence.
+        if self._voice.active:
+            self._logger.info(
+                "voice trigger ignored: host voice action already active"
+            )
+            return
+
         if not self._open_playback_for_new_session():
             self._logger.info(
                 "voice failing closed: no usable output endpoint; hotkey/MIC_OPEN suppressed"
