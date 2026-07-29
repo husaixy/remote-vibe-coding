@@ -34,10 +34,8 @@ class ButtonHotspotTableTests(unittest.TestCase):
         self.assertEqual(len(voice_hotspots), 1)
         self.assertEqual(voice_hotspots[0].button_id, "mic")
 
-    def test_mic_hotspot_matches_macos_voice_hotspot_coordinates(self):
-        # Copied byte-for-byte from Sources/XiaomiRemoteBridgeMac/
-        # SettingsView.swift's voiceHotspot(x: 0.630, y: 0.099, width: 0.15,
-        # height: 0.072) call - see remote_layout.py's module docstring.
+    def test_mic_hotspot_uses_the_calibrated_voice_coordinates(self):
+        # The fixed microphone hotspot is part of the Windows layout contract.
         mic = remote_layout.hotspot_for("mic")
         self.assertEqual((mic.x, mic.y, mic.width, mic.height), (0.630, 0.099, 0.15, 0.072))
 

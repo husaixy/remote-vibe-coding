@@ -18,10 +18,10 @@ Default table matches the XRBM-014 task book's "默认 Windows 映射候选":
 | TV | Alt+Esc |
 
 The RC003 HID usage table also defines a "volume_mute" usage (see
-device_profile.BUTTON_USAGE_IDS), but this project's macOS adapter documents
-that the physical remote has no dedicated mute key - "系统静音" is only an
-optional assignable action, never a default. This module mirrors that: mute
-is a valid, bindable logical button but intentionally has no default entry.
+device_profile.BUTTON_USAGE_IDS), but this Windows client documents that the
+physical remote has no dedicated mute key - "系统静音" is only an optional
+assignable action, never a default. This module mirrors that: mute is a valid,
+bindable logical button but intentionally has no default entry.
 """
 
 from __future__ import annotations

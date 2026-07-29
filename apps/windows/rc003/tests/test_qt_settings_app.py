@@ -1621,7 +1621,7 @@ class RenderedContrastTests(unittest.TestCase):
 
 # XRBM-032: proves, against the REAL main.qml ButtonsPage rendered offscreen,
 # that (a) every one of the 13 hotspot Items' visual CENTER coincides with
-# the macOS-verified center fraction from remote_layout.py (mapped through
+# the calibrated center fraction from remote_layout.py (mapped through
 # the live PreserveAspectFit painted geometry), and (b) a REAL QTest mouse
 # click delivered at the OK button's TRUE physical center actually selects
 # OK. Before the fix (which subtracted half the item's width/height to turn
@@ -1759,7 +1759,7 @@ print(json.dumps(results_out))
 @unittest.skipUnless(_HAS_PYSIDE6, _SKIP_REASON)
 class ButtonsPageHotspotGeometryTests(unittest.TestCase):
     """XRBM-032: every hotspot's rendered visual center must match the
-    macOS-verified center fraction (remote_layout.py), and a real click at
+    calibrated center fraction (remote_layout.py), and a real click at
     OK's true center must select OK. See ``_HOTSPOT_GEOMETRY_PROBE_SCRIPT``.
     """
 
@@ -1790,7 +1790,7 @@ class ButtonsPageHotspotGeometryTests(unittest.TestCase):
         )
         return json.loads(result.stdout.strip().splitlines()[-1])
 
-    def test_all_thirteen_hotspot_centers_match_macos_verified_fractions(self):
+    def test_all_thirteen_hotspot_centers_match_calibrated_fractions(self):
         data = self._run_probe()
         hotspots = data["hotspots"]
         self.assertEqual(

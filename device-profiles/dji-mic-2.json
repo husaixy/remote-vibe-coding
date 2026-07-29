@@ -1,5 +1,4 @@
 {
-  "$schema": "../specs/device-profile.schema.json",
   "schemaVersion": 1,
   "id": "dji-mic-2",
   "displayName": "DJI Mic 2",
@@ -7,7 +6,7 @@
   "model": "DMT02 / DMR02",
   "support": {
     "status": "research",
-    "notes": "Windows settings can select DJI Mic 2 and report a real recording endpoint, but continuous recording and transmitter-control mapping are not yet accepted on real hardware."
+    "notes": "Windows settings can select DJI Mic 2 and report a real recording endpoint; continuous recording and transmitter-control mapping are not accepted on real hardware."
   },
   "identity": {
     "bluetoothNamePrefixes": [
@@ -24,13 +23,13 @@
       "kind": "usb-digital-audio",
       "role": "voice-input",
       "status": "research",
-      "notes": "DJI officially documents connecting the receiver to a computer by USB-C. Device enumeration and channel behavior must be verified on each desktop platform."
+      "notes": "DJI officially documents connecting the receiver to a computer by USB-C; endpoint behavior is verified from Windows audio enumeration."
     },
     {
       "kind": "bluetooth-br-edr-audio",
       "role": "voice-input",
       "status": "planned",
-      "notes": "Windows 11 real-device evidence confirms the transmitter can expose the standard Bluetooth HFP Hands-Free recording path. Availability remains platform/device-state dependent and is verified by the audio-input endpoint, not pairing alone."
+      "notes": "Windows HFP recording availability depends on device state and is verified by the audio-input endpoint."
     }
   ],
   "capabilities": [
@@ -48,19 +47,9 @@
   ],
   "platforms": [
     {
-      "platform": "macos",
-      "status": "planned",
-      "notes": "The existing CoreAudio input selector can route a user-selected DJI Mic 2 input; device-specific detection and real-device acceptance are in progress."
-    },
-    {
       "platform": "windows",
       "status": "planned",
-      "notes": "Windows Bluetooth HFP identity and recording endpoints are confirmed on real hardware. A dedicated selectable settings page and endpoint diagnostics are implemented as a build candidate; continuous recording and physical-control acceptance remain pending."
-    },
-    {
-      "platform": "linux",
-      "status": "research",
-      "notes": "Start with receiver-over-USB audio enumeration; Bluetooth is a separate research path."
+      "notes": "Windows Bluetooth HFP identity and recording endpoints are confirmed on real hardware; continuous recording and physical-control acceptance remain pending."
     }
   ],
   "sources": [

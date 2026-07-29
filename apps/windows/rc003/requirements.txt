@@ -3,7 +3,7 @@
 # All of these are optional at import time within ovb_rc003 (every module
 # that needs one guards the import and raises a clear "*Unavailable* error
 # instead of failing to import) - this lets the package's cross-platform
-# pure-logic modules and their tests run on macOS/Linux without any of
+# pure-logic modules and their tests can run on non-Windows hosts without any of
 # these installed. They are required to actually run the app on Windows.
 
 sounddevice==0.5.5

@@ -7,10 +7,10 @@
 > 当前产物未签名，也不会自动安装虚拟音频驱动。
 > 尚未完成真实 RC003 硬件配对、按键和语音链路验收。
 
-这是本仓库 macOS RC003 适配器（`Sources/RemoteMic`）的 Windows 对应版本，
-面向同一款小米蓝牙遥控器 2 Pro / RC003，提供按键映射和 ATVV
+这是本仓库独立维护的 Windows RC003 客户端，面向小米蓝牙遥控器 2 Pro / RC003，
+提供按键映射和 ATVV
 （Android TV Voice-over-BLE）语音桥接。项目整体说明请阅读仓库根目录的
-`README.md` 和 `TECHNICAL.md`。
+`README.md`。
 
 设置窗口提供明确的设备选择器。选择 **小米 RC003** 时使用桥接、虚拟输出和
 13 键映射界面；选择 **DJI Mic 2（Pocket 3 套装发射器）** 时切换到独立的
@@ -47,7 +47,7 @@ Windows 系统录音输入页面，绝不会启动 RC003 BLE/HID/ATVV 桥接。D
 首选来源是本仓库的 Releases 列表页——这是列表页本身，不是指向某个具体
 tag 的链接，因此始终是获取最新预发行版的稳定入口，请直接使用这个地址：
 
-  https://github.com/HD838A/remote-mic-app/releases
+  https://github.com/miaomiaozii/remote-mic-app/releases
 
 在列表中找到本 RC003 Windows 候选对应的预发行版（预发行版会明确标记为
 prerelease，发布说明会写清楚它基于哪一次真实 Windows CI 运行）。
@@ -249,7 +249,7 @@ RC003 共 **13 个物理按键**（12 个普通按键 + 1 个固定的麦克风�
 
 ## 功能实现
 
-Windows 客户端围绕与 macOS 版本相同的 RC003 使用场景实现，主要功能如下：
+Windows 客户端围绕 RC003 使用场景实现，主要功能如下：
 
 - 使用 **WinRT BLE** 查找已配对的 RC003，并按设备名称精确匹配；找到 0 个或多个候选时都会拒绝猜测。
 - 使用 Windows **Raw Input** 接收遥控器普通按键，并校验选中的 HID 路径，避免误接收另一只相同型号设备的事件。
@@ -312,7 +312,7 @@ $env:PYTHONPATH = Join-Path (Get-Location) 'src'
 ```
 
 Windows GitHub Actions 工作流位于 `.github/workflows/windows-rc003-ci.yml`。运行结果
-可在 <https://github.com/HD838A/remote-mic-app/actions> 查看。CI 没有真实 RC003 硬件，
+可在 <https://github.com/miaomiaozii/remote-mic-app/actions> 查看。CI 没有真实 RC003 硬件，
 因此构建和测试通过也不能替代真机配对、按键和语音链路验收。
 
 ## 已知限制

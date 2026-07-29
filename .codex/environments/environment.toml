@@ -3,9 +3,9 @@ version = 1
 name = "remote-mic-app"
 
 [setup]
-script = ""
+script = "Set-Location apps/windows/rc003; if (-not (Test-Path .venv\\Scripts\\python.exe)) { python -m venv .venv }; .\\.venv\\Scripts\\python.exe -m pip install -r requirements-dev.txt"
 
 [[actions]]
 name = "Run"
 icon = "run"
-command = "./script/build_and_run.sh"
+command = "Set-Location apps/windows/rc003; $env:PYTHONPATH = (Join-Path (Get-Location) 'src'); .\\.venv\\Scripts\\python.exe -m ovb_rc003 --settings"

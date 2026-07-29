@@ -1,8 +1,5 @@
-// Top-level settings window (XRBM-030 In-scope item 2): three pages -
-// "连接" / "按键" / "权限" - matching the macOS client's
-// SettingsView.swift TabView structure/order exactly, but keeping Windows'
-// own title bar/Fluent chrome (never the macOS red/yellow/green traffic
-// lights - see Out-of-scope).
+// Top-level Windows settings window (XRBM-030 In-scope item 2). It uses a
+// native Qt Quick window and Windows' own title-bar/Fluent chrome.
 //
 // `SettingsController`/`ButtonMappingModel` below are QML SINGLETON types
 // (registered via qmlRegisterSingletonInstance in

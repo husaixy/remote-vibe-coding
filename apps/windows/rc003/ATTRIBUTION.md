@@ -4,7 +4,7 @@
 
 - 上游项目：[`nijez/open-voice-bridge`](https://github.com/nijez/open-voice-bridge)
 - 上游 Windows 实现：`apps/windows/rc003/`
-- 本仓库：[`HD838A/remote-mic-app`](https://github.com/HD838A/remote-mic-app)
+- 本仓库：[`miaomiaozii/remote-mic-app`](https://github.com/miaomiaozii/remote-mic-app)
 
 上游项目已经提供了 RC003 的 Windows 参考实现，包括 WinRT BLE、ATVV 语音协议、
 Windows Raw Input、SendInput、PortAudio 音频输出、Qt/QML 设置页、诊断、测试和
@@ -23,9 +23,9 @@ PyInstaller/Inno Setup 构建流程。本仓库在 GPL-3.0-only 条件下保留�
 
 ## 其他参考来源
 
-RC003 的 ATVV UUID、控制命令、IMA/DVI ADPCM 解码和 HID 映射事实也与本仓库
-macOS 实现保持一致；macOS 实现的协议来源见根目录的
-[`THIRD_PARTY_NOTICES.md`](../../../THIRD_PARTY_NOTICES.md)。
+RC003 的 ATVV UUID、控制命令、IMA/DVI ADPCM 解码和 HID 映射事实见仓库根目录的
+[`THIRD_PARTY_NOTICES.md`](../../../THIRD_PARTY_NOTICES.md)；本分支不依赖另一个平台
+的实现文件。
 
 VB-CABLE 是 VB-Audio 的独立第三方软件，不属于本项目的 GPL 代码。Windows 构建
 脚本只在显式执行、哈希固定的步骤中获取官方安装包；应用不会静默安装或修改系统

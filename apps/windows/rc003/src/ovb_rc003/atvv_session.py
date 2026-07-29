@@ -7,8 +7,8 @@ it can be unit tested on any OS.
 
 Behavior (capability gate, decoder reset-on-AUDIO_START, one-shot AUDIO_SYNC,
 late-audio discard guard) is a clean-room reimplementation of the protocol
-behavior documented in this repository's own macOS adapter and the upstream
-reference (see atvv_protocol.py module docstring for provenance).
+behavior documented by the upstream reference (see atvv_protocol.py module
+docstring for provenance).
 """
 
 from __future__ import annotations

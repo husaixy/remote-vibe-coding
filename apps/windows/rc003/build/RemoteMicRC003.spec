@@ -55,8 +55,8 @@ if QML_SOURCE_DIR.is_dir():
     # resources.py's module docstring).
     datas.append((str(QML_SOURCE_DIR), "ovb_rc003_qml"))
 if DEVICE_PROFILES_DIR.is_dir():
-    # The exact repository JSON files are the runtime catalog on both
-    # platforms. The frozen loader reads them from
+    # The exact repository JSON files are the runtime catalog for Windows. The
+    # frozen loader reads them from
     # sys._MEIPASS/device-profiles and fails closed if they are absent or
     # invalid; no generated/hard-coded duplicate is bundled.
     datas.append((str(DEVICE_PROFILES_DIR), "device-profiles"))

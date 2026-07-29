@@ -2,16 +2,11 @@
 hotspots and the physical-button display strings shown next to each mapping
 row (XRBM-030).
 
-Hotspot coordinates are NOT re-derived from scratch: they are copied
-byte-for-byte from this repository's own already-accepted macOS adapter
-(``Sources/XiaomiRemoteBridgeMac/SettingsView.swift``'s ``RemoteControlDiagram``
-private ``hotspot`` calls, plus its ``voiceHotspot`` for the microphone),
-which King has already verified against the real product photo. Each
-coordinate is a fraction (0..1) of the photo's own width/height, so it is
-resolution-independent - the same fractions apply whether the photo is
-rendered at 210x426 (macOS's fixed frame) or any other size, because the
-photo's own aspect ratio (508:1030, see ``THIRD_PARTY_NOTICES.md``) is
-preserved at every size (``Image.PreserveAspectFit`` in the Qt Quick view).
+Hotspot coordinates are calibrated for the bundled RC003 product photo and
+stored as fractions (0..1) of the photo's own width/height, so they are
+resolution-independent. The same fractions apply at any display size because
+the photo's own aspect ratio (508:1030, see ``THIRD_PARTY_NOTICES.md``) is
+preserved by the Qt Quick ``PreserveAspectFit`` view.
 
 This module has no Tk/Qt import at all, so it is directly unit-testable
 (see tests/test_remote_layout.py) and importable from a plain ``--dry-run``
@@ -33,9 +28,7 @@ _BUTTON_ID_TO_HID_USAGE: Dict[str, int] = {
 }
 
 # Chinese name of the PHYSICAL button itself (not the action it is currently
-# mapped to) - matches Sources/XiaomiRemoteBridgeMac/RemoteButtons.swift's
-# RemoteButton.displayName exactly, plus "mic" (which macOS shows via its own
-# separate fixed voice hotspot, not a RemoteButton case).
+# mapped to), plus the fixed ATVV microphone button.
 BUTTON_DISPLAY_NAMES: Dict[str, str] = {
     "power": "电源键",
     "up": "上键",

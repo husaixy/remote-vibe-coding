@@ -1,13 +1,12 @@
 {
-  "$schema": "../specs/device-profile.schema.json",
   "schemaVersion": 1,
   "id": "xiaomi-rc003",
   "displayName": "Xiaomi Bluetooth Remote 2 Pro / RC003",
   "vendor": "Xiaomi",
   "model": "RC003",
   "support": {
-    "status": "implemented",
-    "notes": "The macOS adapter has completed automated and real-device acceptance. Windows and Linux adapters are not implemented."
+    "status": "research",
+    "notes": "The Windows client has a source/build candidate; real RC003 pairing, button and voice-link acceptance is still pending."
   },
   "identity": {
     "bluetoothNames": [
@@ -24,14 +23,14 @@
     {
       "kind": "ble-gatt",
       "role": "voice-input",
-      "status": "implemented",
-      "notes": "ATVV control and 16 kHz compressed voice frames are handled by the current macOS adapter."
+      "status": "research",
+      "notes": "The Windows client contains WinRT BLE ATVV capability negotiation, microphone control and compressed voice decoding; real-device acceptance is pending."
     },
     {
       "kind": "bluetooth-hid",
       "role": "button-input",
-      "status": "implemented",
-      "notes": "Button reports and the hardware microphone-key F5 edge are handled through IOHID on macOS."
+      "status": "research",
+      "notes": "The Windows client contains Raw Input matching and button mapping; real-device acceptance is pending."
     }
   ],
   "capabilities": [
@@ -43,28 +42,19 @@
   "protocols": [
     {
       "id": "android-tv-voice-over-ble",
-      "status": "implemented",
-      "notes": "The current adapter implements capability negotiation, microphone control, IMA/DVI ADPCM decode, and strict session gates."
+      "status": "research",
+      "notes": "The Windows candidate implements capability negotiation, microphone control, IMA/DVI ADPCM decode and session gates."
     }
   ],
   "platforms": [
     {
-      "platform": "macos",
-      "status": "implemented",
-      "notes": "Universal build; current real-device acceptance was performed on Apple Silicon."
-    },
-    {
       "platform": "windows",
-      "status": "planned",
-      "notes": "A source/build candidate exists at apps/windows/rc003 (button mapping via the Win32 Raw Input API, ATVV voice via WinRT BLE, user-selected audio output, Tk settings UI). It builds and passes cross-platform contract tests but has not been run on a real Windows machine or against a real RC003; it is not implemented/supported until that real-device verification is complete. See apps/windows/rc003/README.md, in particular its 'Known gaps' section."
-    },
-    {
-      "platform": "linux",
-      "status": "planned",
-      "notes": "No Open Voice Bridge Linux adapter has been implemented."
+      "status": "research",
+      "notes": "A source/build candidate exists at apps/windows/rc003; real RC003 pairing, button and voice-link acceptance remains pending."
     }
   ],
   "sources": [
-    "https://github.com/xxb26553663-star/remote-bridge-hub"
+    "https://github.com/xxb26553663-star/remote-bridge-hub",
+    "https://github.com/nijez/open-voice-bridge"
   ]
 }

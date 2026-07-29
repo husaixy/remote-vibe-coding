@@ -1,8 +1,9 @@
 .build/
 dist/
-.swiftpm/
-*.xcuserstate
-.DS_Store
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
 
 # Local project-control records are not part of the public source release.
 docs/

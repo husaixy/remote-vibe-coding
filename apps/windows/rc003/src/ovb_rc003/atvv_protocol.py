@@ -1,8 +1,6 @@
 """Android TV Voice-over-BLE (ATVV) protocol constants and codecs.
 
-Clean-room reimplementation informed by this repository's own already-accepted
-macOS adapter (Sources/XiaomiRemoteBridgeMac/ATVVProtocol.swift), which in turn
-documents adaptation from the GPL-3.0-only upstream project
+Clean-room reimplementation informed by the GPL-3.0-only upstream project
 xxb26553663-star/remote-bridge-hub @ 8a93f321ac71a602300c6cd77f7256fa4b63068e
 (source/bridges/xiaomi/atvv_record.py, atvv_live_bridge.py). The GATT UUIDs,
 control opcodes, and IMA/DVI ADPCM tables are interoperability facts (the

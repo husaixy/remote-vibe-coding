@@ -45,7 +45,7 @@ _VALID_CAPABILITIES = frozenset(
         "device-status",
     )
 )
-_VALID_PLATFORMS = frozenset(("macos", "windows", "linux"))
+_VALID_PLATFORMS = frozenset(("windows",))
 _ID_PATTERN = re.compile(r"^[a-z0-9]+([.-][a-z0-9]+)*$")
 
 

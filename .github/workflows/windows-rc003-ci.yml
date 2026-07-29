@@ -49,6 +49,7 @@ on:
       - "LICENSE.md"
       - "THIRD_PARTY_NOTICES.md"
       - "device-profiles/xiaomi-rc003.json"
+      - "device-profiles/dji-mic-2.json"
   pull_request:
     paths:
       - "apps/windows/rc003/**"
@@ -57,6 +58,7 @@ on:
       - "LICENSE.md"
       - "THIRD_PARTY_NOTICES.md"
       - "device-profiles/xiaomi-rc003.json"
+      - "device-profiles/dji-mic-2.json"
 
 permissions:
   contents: read

@@ -82,7 +82,7 @@ def resolve_selected_endpoint(
 def enumerate_output_endpoints() -> List[AudioEndpoint]:
     """Enumerate real Windows playback endpoints via ``sounddevice``/PortAudio.
 
-    Windows-only in practice (PortAudio also runs on macOS/Linux, but this
+    Windows-only in practice (PortAudio also runs on other platforms, but this
     project only ships a Windows client); guarded so importing this module
     never fails on a machine without the optional dependency installed.
     """

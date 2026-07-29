@@ -1137,7 +1137,7 @@ class PrereleaseDownloadInstructionsContractTests(unittest.TestCase):
 
     def test_links_to_the_generic_releases_page_not_a_specific_tag(self):
         self.assertIn(
-            "https://github.com/HD838A/remote-mic-app/releases", self.text
+            "https://github.com/miaomiaozii/remote-mic-app/releases", self.text
         )
         # Must be the bare list page - a link straight into a specific
         # /releases/tag/... URL would 404 until that exact tag exists.
@@ -1209,8 +1209,8 @@ class RealWindowsCiEvidenceContractTests(unittest.TestCase):
         self.assertIn("未完成真实 RC003 硬件配对", self.readme_text)
 
     def test_repository_links_to_its_own_actions_and_releases(self):
-        self.assertIn("https://github.com/HD838A/remote-mic-app/releases", self.readme_text)
-        self.assertIn("https://github.com/HD838A/remote-mic-app/actions", self.readme_text)
+        self.assertIn("https://github.com/miaomiaozii/remote-mic-app/releases", self.readme_text)
+        self.assertIn("https://github.com/miaomiaozii/remote-mic-app/actions", self.readme_text)
 
 
 class PortableAndInstallerFlowContractTests(unittest.TestCase):
@@ -1363,10 +1363,9 @@ class ConfigLogResidueDisclosureContractTests(unittest.TestCase):
 
 
 class WindowsPrereleaseAssetScopeContractTests(unittest.TestCase):
-    """XRBM-027 CORRECTION 1: the repository also has a distinct macOS
-    prerelease (v0.2.0, a .dmg) with a different asset set - a bare "every
-    prerelease has exactly these three files" claim in the RC003 Windows
-    doc would be read as also covering that unrelated macOS release.
+    """XRBM-027 CORRECTION 1: a bare "every prerelease has exactly these
+    three files" claim must not be read as covering unrelated releases or
+    other product variants.
     """
 
     def setUp(self):

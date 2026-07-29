@@ -2,10 +2,8 @@
 // for this app - Bluetooth pairing, microphone/speech recognition (Win+H
 // dictation depends on it), and log-directory diagnostics. This page never
 // renders a fabricated "已授权" state: Windows does not expose a single API
-// this app can query for "is Bluetooth/microphone access granted" the way
-// macOS's TCC database does, so every row only offers to OPEN the relevant
-// Settings page/log folder and states plainly what it is for - never claims
-// a result it cannot actually observe.
+// this app can query for all of these states, so every row only offers to OPEN
+// the relevant Settings page/log folder and states plainly what it is for.
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts

@@ -1,5 +1,6 @@
 // "按键" tab (XRBM-030 In-scope items 4/5): the RC003 product photo with 13
-// clickable hotspots (macOS-verified coordinates, see remote_layout.py) on
+// clickable hotspots calibrated for the bundled RC003 photo (see
+// remote_layout.py) on
 // the left, the mapping list (Chinese name / HID usage / current action) on
 // the right. Both sides are two views over the SAME ButtonMappingModel row,
 // kept in sync through SettingsController.selectButton()/
@@ -210,18 +211,10 @@ Item {
                         readonly property real offsetY: photoImage.y + (photoImage.height - paintedH) / 2
 
                         // hotspotX/hotspotY are the hotspot's CENTER as a
-                        // fraction of the painted photo, copied byte-for-byte
-                        // from the macOS-verified coordinates
-                        // (remote_layout.py). SwiftUI's RemoteControlDiagram
-                        // places each hotspot with `.position(x:y:)`, which
-                        // centers the view on that point, AFTER giving it its
-                        // width/height (SettingsView.swift hotspot()/
-                        // voiceHotspot()). A QML Item's x/y are its TOP-LEFT,
-                        // so we convert center -> top-left by subtracting half
-                        // the item's own width/height, keeping the
-                        // PreserveAspectFit letterbox offset. Without this the
-                        // whole highlight/click region drifts down-right by
-                        // half a hotspot (XRBM-032).
+                        // fraction of the painted photo. A QML Item's x/y are
+                        // its TOP-LEFT, so convert center -> top-left by
+                        // subtracting half the item's own width/height while
+                        // preserving the letterbox offset.
                         width: hotspotWidth * paintedW
                         height: hotspotHeight * paintedH
                         x: offsetX + hotspotX * paintedW - width / 2

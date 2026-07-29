@@ -1,113 +1,51 @@
-# 无线麦
+# Remote Mic · Windows 版本（RC003）
 
-![无线麦——为 Vibe Coding 而生的语音遥控器](Screenshots/Remote-Mic-Introduce-1.png)
+这是 `miaomiaozii/remote-mic-app` 的 Windows-only 维护分支，面向小米蓝牙遥控器 2 Pro（RC003）。macOS 应用、Swift 工程和 macOS 发布资源不属于本分支。
 
-无线麦是一款 macOS 菜单栏应用，可以把小米蓝牙遥控器 2 Pro（RC003）变成 Mac 的无线语音遥控器。
+Windows 客户端位于 [`apps/windows/rc003`](apps/windows/rc003/README.md)，提供：
 
-按住遥控器的语音键即可说话；遥控器上的方向、确定、返回、主页、菜单、TV 和音量键也可以用来控制 Mac，或设置为打开常用应用。
+- WinRT BLE 连接与 ATVV 语音解码；
+- Windows Raw Input 按键监听与 SendInput 按键映射；
+- PortAudio 输出到用户明确选择的音频端点；
+- PySide6/Qt Quick 设置窗口、诊断和 PyInstaller/Inno Setup 构建。
 
-![连接与语音设置页](Screenshots/connection-and-voice.png)
+当前版本仍是源码/构建候选，尚未完成真实 RC003 遥控器的配对、逐键和语音链路验收；CI 和自动构建不能替代真实硬件验收。
 
-## 使用要求
+## 本地运行
 
-- Apple Silicon Mac；
-- macOS 26 或更高版本；
-- 小米蓝牙遥控器 2 Pro / RC003；
-- 使用语音输入时，需要安装随安装包提供的兼容麦克风，或在 Mac 上已有 BlackHole 2ch 等回环音频设备。
+在 Windows PowerShell 中执行：
 
-## 下载与安装
+```powershell
+Set-Location apps/windows/rc003
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+$env:PYTHONPATH = Join-Path (Get-Location) 'src'
+.\.venv\Scripts\python.exe -m ovb_rc003 --settings
+```
 
-发布的安装包会在 [GitHub Releases](https://github.com/HD838A/remote-mic-app/releases/latest) 提供，文件名为 `Remote-Mic-<版本>.dmg`。
+运行测试：
 
-打开 DMG 后有两种安装方式：
+```powershell
+.\.venv\Scripts\python.exe -m unittest discover -s tests -t . -p 'test_*.py' -v
+```
 
-1. 推荐：双击“安装无线麦.pkg”。它会同时安装“无线麦”和 `MiRemoteV 2ch` 兼容麦克风，适合豆包输入法及其他语音输入应用。
-2. 仅安装应用：把“无线麦.app”拖到 Applications。如果使用这种方式，请确保 Mac 上已经有可用的回环音频设备。
+构建未签名候选版：
 
-当前安装包尚未进行 Apple 公证。若 macOS 阻止打开，请前往“系统设置 → 隐私与安全性”，确认文件来自你信任的来源后选择继续打开。
+```powershell
+.\build\build-candidate.ps1
+```
 
-## Windows 版本（RC003）
+完整安装、配对、VB-CABLE 配置、已知限制和发布流程见 [`apps/windows/rc003/README.md`](apps/windows/rc003/README.md)。
 
-Windows 客户端位于 [`apps/windows/rc003`](apps/windows/rc003/README.md)，功能
-对标本仓库的 macOS 版本：连接小米蓝牙遥控器 2 Pro（RC003），读取普通按键，
-接收 ATVV 蓝牙语音并输出到用户选择的 Windows 音频设备，再通过可配置的组合键
-触发 Windows 语音输入。它使用 WinRT BLE、Windows Raw Input、SendInput 和
-PortAudio，并提供中文设置窗口、按键映射、连接诊断、便携版 ZIP 和 Inno Setup
-安装包。
+## 维护边界
 
-Windows 版当前标记为“源码/构建候选”：需要 Windows 10 1809（64 位）或更高版本，
-语音输入通常还需要用户自行安装并配置 VB-CABLE；项目 CI 和自动构建不能替代
-真实 RC003 遥控器的配对、按键和语音链路验收。详细安装、构建和已知限制见
-[`apps/windows/rc003/README.md`](apps/windows/rc003/README.md)。
+- 主程序源码只在 `apps/windows/rc003`；
+- Windows CI 位于 `.github/workflows/windows-rc003-ci.yml`；
+- `device-profiles` 只保留 Windows 客户端使用的设备目录；
+- `LICENSE.md`、`COPYRIGHT.md`、`THIRD_PARTY_NOTICES.md` 和
+  [`apps/windows/rc003/ATTRIBUTION.md`](apps/windows/rc003/ATTRIBUTION.md) 保留 GPL
+  与上游来源义务，不代表继续维护原 macOS 应用。
 
-## 首次使用
+## 许可证与来源
 
-1. 在“系统设置 → 蓝牙”中打开蓝牙。
-2. 同时长按遥控器的“主页”和“菜单”键，使遥控器进入配对状态。
-3. 在 Mac 上连接名称为 `MI RC`、`Xiaomi Bluetooth Remote 2 Pro` 或“小米蓝牙语音遥控器”的设备。
-4. 启动“无线麦”，按提示允许蓝牙权限。
-5. 如果需要自定义普通按键，再允许“输入监控”和“辅助功能”。授权后请完全退出并重新打开应用。
-
-应用启动后常驻菜单栏：
-
-- 左键单击图标：打开设置面板；
-- 右键单击图标：显示连接状态、重新连接、日志、关于、版本号、检查更新、GitHub 和退出菜单。
-
-应用不会自动检查更新；只有从右键菜单选择“检查更新…”时才会访问更新源。Sparkle 仅更新应用本体，兼容麦克风驱动仍由 DMG 中的安装包管理。
-
-## 使用语音输入
-
-1. 打开“连接与语音”页面。
-2. 点击“刷新音频设备”。
-3. 选择 `MiRemoteV 2ch`，或选择你已经安装的其他回环音频设备。
-4. 在需要听写或语音输入的应用中选择同一个设备作为麦克风。
-5. 单击目标输入框，按住遥控器语音键说话，松开后结束。
-
-如果想先确认音频链路是否正常，可以点击“发送 1 秒测试音”，或在 QuickTime Player 的“新建音频录制”中观察输入电平。
-
-豆包输入法找不到普通虚拟麦克风时，请使用 DMG 中的“安装无线麦.pkg”，然后在无线麦中选择 `MiRemoteV 2ch`。详细步骤见[豆包输入法兼容说明](Resources/豆包输入法兼容说明.md)。
-
-## 自定义遥控器按键
-
-![按键映射设置页](Screenshots/key-mapping.png)
-
-打开“按键映射”页面并启用自定义映射后，可以修改方向、确定、返回、主页、菜单、TV、电源和音量键的功能。
-
-每个普通按键都可以设置单击动作，并可额外设置双击和长按动作。动作支持键盘操作、系统音量、播放控制、打开当前 Mac 已安装的常用应用，以及录入任意自定义键盘快捷键。
-
-- 没有设置双击或长按时，单击保持原有的即时响应和按住重复；
-- 设置双击后，应用会等待约 0.3 秒区分单击和双击；
-- 设置长按后，按住约 0.55 秒执行长按动作，并抑制单击；
-- 设置了双击或长按的实体键不会再按住重复，避免多个动作同时触发。
-
-语音键始终用于语音输入，不参与普通按键映射。
-
-## 权限与隐私
-
-- 蓝牙：连接遥控器并接收语音；
-- 输入监控：识别遥控器普通按键；
-- 辅助功能：把按键动作发送给当前应用。
-
-无线麦不会上传或保存语音，不会自动修改系统默认输入、输出设备，也不会在日志中记录语音内容、蓝牙地址或外设标识。
-
-## 卸载
-
-1. 退出无线麦。
-2. 双击 DMG 中的“卸载无线麦.pkg”，移除 `MiRemoteV 2ch` 兼容麦克风。
-3. 删除“应用程序”中的“无线麦.app”。
-
-卸载兼容麦克风不会修改或删除已有的 BlackHole。
-
-## 遇到问题
-
-请先查看[排障指南](TROUBLESHOOTING.md)。首次安装的完整步骤见[首次安装说明](Resources/首次安装说明.md)。
-
-开发、构建、协议、测试和发布信息见[技术文档](TECHNICAL.md)。
-
-## 许可与来源
-
-本项目软件代码采用 `GPL-3.0-only` 许可。App Logo 是需要单独授权的专有品牌资产，详情见 [LOGO-LICENSE.md](LOGO-LICENSE.md)。完整版权和第三方信息见 [COPYRIGHT.md](COPYRIGHT.md) 与 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
-
-项目最初 fork 自 [nijez/open-voice-bridge](https://github.com/nijez/open-voice-bridge)，现由本仓库独立维护。
-
-`MiRemoteV 2ch` 的设备命名及让豆包枚举设备的 USB transport 兼容方案参考自 [VincentKingHsu/MiRemoteVoice](https://github.com/VincentKingHsu/MiRemoteVoice) `v1.0.0-beta.1`（MIT）；该项目的兼容驱动同样基于 BlackHole。本项目不复用 MiRemoteVoice 的二进制替换脚本，而是从 [ExistentialAudio/BlackHole](https://github.com/ExistentialAudio/BlackHole) `v0.7.1`（固定提交 `e2b22aaaba4e507a097131704bf96dabc004d9cf`）源码独立派生构建 `MiRemoteV2ch.driver`，适用 `GPL-3.0`。它使用独立标识，可与已安装的 BlackHole 并存，不覆盖或删除其文件。
+代码按 `GPL-3.0-only` 发布。Windows 实现的上游来源、改动说明和第三方软件边界见 [`apps/windows/rc003/ATTRIBUTION.md`](apps/windows/rc003/ATTRIBUTION.md)、[`COPYRIGHT.md`](COPYRIGHT.md) 和 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。

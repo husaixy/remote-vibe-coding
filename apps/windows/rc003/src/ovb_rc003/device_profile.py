@@ -1,9 +1,7 @@
 """Static identity facts for the Xiaomi Bluetooth Remote 2 Pro / RC003.
 
-Derived from: device-profiles/xiaomi-rc003.json and
-Sources/XiaomiRemoteBridgeMac/VoiceBridgeDeviceProfile.swift (this repository's
-own already-accepted macOS adapter), kept byte-for-byte consistent with those
-two files so the Windows client identifies the same physical product.
+Derived from ``device-profiles/xiaomi-rc003.json`` and kept consistent with the
+Windows device profile so the client identifies the intended physical product.
 
 Upstream provenance (GPL-3.0-only, informational only - no code copied):
 xxb26553663-star/remote-bridge-hub @ 8a93f321ac71a602300c6cd77f7256fa4b63068e,

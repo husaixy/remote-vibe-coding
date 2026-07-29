@@ -13,12 +13,12 @@ class DeviceCatalogTests(unittest.TestCase):
         self.assertIsNone(device_catalog.CATALOG_ERROR)
         self.assertEqual(
             [profile.device_id for profile in device_catalog.DEVICE_PROFILES],
-            ["xiaomi-arn9", device_catalog.RC003_ID, device_catalog.DJI_MIC_2_ID],
+            [device_catalog.DJI_MIC_2_ID, device_catalog.RC003_ID],
         )
         rc003 = device_catalog.profile_for(device_catalog.RC003_ID)
         dji = device_catalog.profile_for(device_catalog.DJI_MIC_2_ID)
         self.assertEqual(rc003.display_name, "Xiaomi Bluetooth Remote 2 Pro / RC003")
-        self.assertEqual(rc003.support_status, "implemented")
+        self.assertEqual(rc003.support_status, "research")
         self.assertEqual(dji.display_name, "DJI Mic 2")
         self.assertEqual(dji.support_status, "research")
         self.assertEqual(
@@ -91,6 +91,18 @@ class DeviceCatalogTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temp_dir:
             directory = Path(temp_dir)
+            non_windows = json.loads(json.dumps(source_profile))
+            non_windows["platforms"][0]["platform"] = "macos"
+            (directory / "non-windows.json").write_text(
+                json.dumps(non_windows), encoding="utf-8"
+            )
+            with self.assertRaisesRegex(
+                device_catalog.DeviceCatalogLoadError, "platform is unknown"
+            ):
+                device_catalog.load_device_catalog(directory)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            directory = Path(temp_dir)
             encoded = json.dumps(source_profile)
             (directory / "one.json").write_text(encoded, encoding="utf-8")
             (directory / "two.json").write_text(encoded, encoding="utf-8")
@@ -111,7 +123,7 @@ class DeviceCatalogTests(unittest.TestCase):
                 catalog = device_catalog.load_device_catalog()
                 self.assertEqual(
                     [profile.device_id for profile in catalog.profiles],
-                    ["xiaomi-arn9", device_catalog.RC003_ID, device_catalog.DJI_MIC_2_ID],
+                    [device_catalog.DJI_MIC_2_ID, device_catalog.RC003_ID],
                 )
 
     def test_frozen_locator_does_not_fall_back_to_source_when_bundle_data_is_missing(self):

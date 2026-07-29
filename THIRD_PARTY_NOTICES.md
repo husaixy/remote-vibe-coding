@@ -7,25 +7,20 @@
 - Reference revision: `8a93f321ac71a602300c6cd77f7256fa4b63068e`
 - License: GNU General Public License v3.0 only (`GPL-3.0-only`)
 
-The Xiaomi RC003 ATVV UUIDs, microphone command behavior, IMA/DVI ADPCM decoding order, capability parsing, and HID usage mapping were adapted from this project. The Windows client also derives from the GPL-3.0-only Windows RC003 implementation in `nijez/open-voice-bridge`; see `apps/windows/rc003/ATTRIBUTION.md` for the file-level attribution and changes. The Windows client does not include any upstream customer data or commercial branding.
+The Xiaomi RC003 ATVV UUIDs, microphone command behavior, IMA/DVI ADPCM decoding
+order, capability parsing, and HID usage mapping are protocol references for this
+Windows client. The client does not include upstream customer data or commercial
+branding.
 
-## BlackHole
+## open-voice-bridge Windows implementation
 
-- Project: `ExistentialAudio/BlackHole`
-- Source: <https://github.com/ExistentialAudio/BlackHole>
-- Pinned source revision: `v0.7.1` / `e2b22aaaba4e507a097131704bf96dabc004d9cf`
-- License: GNU General Public License v3.0 (`GPL-3.0`)
+- Project: `nijez/open-voice-bridge`
+- Source: <https://github.com/nijez/open-voice-bridge>
+- License: GNU General Public License v3.0 only (`GPL-3.0-only`)
 
-BlackHole remains an optional loopback-device choice. This fork includes `scripts/build-doubao-driver.sh` and `third_party/blackhole/blackhole-device-usb.patch`, which build a distinct `MiRemoteV2ch.driver` from the pinned BlackHole source. The patch changes only the actual Audio Device transport type to USB and assigns a separate CFPlugIn factory UUID; it does not modify an installed `BlackHole2ch.driver`. The release build embeds the derived driver in a dedicated macOS Installer package. End users install that package from the DMG and do not need the source build tools.
-
-## MiRemoteVoice
-
-- Project: `VincentKingHsu/MiRemoteVoice`
-- Source: <https://github.com/VincentKingHsu/MiRemoteVoice>
-- Reference release: `v1.0.0-beta.1`
-- Application license: MIT
-
-The Doubao compatibility design is informed by MiRemoteVoice: a side-by-side BlackHole-derived device reports its actual audio Device as USB transport so Doubao can enumerate it. This fork reimplements that idea as a pinned, source-built BlackHole patch instead of reusing MiRemoteVoice's version-specific binary replacement script.
+The Windows RC003 implementation in `apps/windows/rc003` is adapted from the
+upstream Windows client. Attribution and the changes made in this repository
+are summarized in `apps/windows/rc003/ATTRIBUTION.md`.
 
 ## RC003 product photo
 
@@ -39,11 +34,8 @@ The RC003 product photo bundled as `RC003-remote-photo.png` was supplied by the 
 - License: VB-Audio Donationware / the vendor's own terms; it is not GPL code
 
 The Windows client does not modify, re-license, silently install, or select
-VB-CABLE as the Windows default device. The build helper
+VB-CABLE as the Windows default device. Audio is written only to the endpoint explicitly selected by the user; the client never changes the Windows system default input/output device. The optional bundle contains only the free Basic package, not the paid A+B/C+D products. The build helper
 `apps/windows/rc003/build/fetch-vb-cable.ps1` downloads and hash-verifies the
 official package only as an explicit build step. At runtime, installation is
-available only after an explicit user click and a real Windows UAC prompt;
-the Remote Mic process never runs with administrator privileges and never reports a driver install as successful merely because a process was launched.
-The optional bundle contains only the free Basic package, not the paid A+B/C+D
-products. Audio is routed only to the endpoint explicitly selected by the user,
-and the application never changes the Windows system default input/output device.
+available only after an explicit user click and a real Windows UAC prompt; the
+Remote Mic process never runs with administrator privileges and never reports a driver install as successful merely because a process was launched.
