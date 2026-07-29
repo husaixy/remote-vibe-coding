@@ -65,8 +65,26 @@ class KeyboardBodyTests(unittest.TestCase):
     def test_recognized_vk_up_emits_release(self):
         rec = RecordingListener()
         vk_right = 0x27
+        rec.listener._handle_keyboard_body(_rawkeyboard_body(vk_right, WM_KEYDOWN))
         rec.listener._handle_keyboard_body(_rawkeyboard_body(vk_right, WM_KEYUP))
-        self.assertEqual(rec.events, [("right", False)])
+        self.assertEqual(rec.events, [("right", True), ("right", False)])
+
+    def test_repeated_keyboard_keydown_is_one_logical_press(self):
+        rec = RecordingListener()
+        rec.listener._handle_keyboard_body(_rawkeyboard_body(0x26, WM_KEYDOWN))
+        rec.listener._handle_keyboard_body(_rawkeyboard_body(0x26, WM_KEYDOWN))
+        rec.listener._handle_keyboard_body(_rawkeyboard_body(0x26, WM_KEYUP))
+        self.assertEqual(rec.events, [("up", True), ("up", False)])
+
+    def test_distinct_press_after_release_is_not_debounced(self):
+        rec = RecordingListener()
+        for _ in range(2):
+            rec.listener._handle_keyboard_body(_rawkeyboard_body(0x26, WM_KEYDOWN))
+            rec.listener._handle_keyboard_body(_rawkeyboard_body(0x26, WM_KEYUP))
+        self.assertEqual(
+            rec.events,
+            [("up", True), ("up", False), ("up", True), ("up", False)],
+        )
 
     def test_unrecognized_vk_emits_nothing(self):
         rec = RecordingListener()
@@ -157,6 +175,21 @@ class HidBodyTests(unittest.TestCase):
         rec = RecordingListener()
         rec.listener._handle_hid_body(_rawhid_body([_hid_report([0x003E])]))
         self.assertEqual(rec.events, [("mic", True)])
+
+    def test_keyboard_and_hid_sources_share_one_logical_edge(self):
+        rec = RecordingListener()
+        # The same physical Up key may be surfaced once as a translated
+        # keyboard event and once as a raw HID usage.  They must not invoke
+        # the mapped action twice, and release only after both sources clear.
+        rec.listener._handle_keyboard_body(_rawkeyboard_body(0x26, WM_KEYDOWN))
+        rec.listener._handle_hid_body(_rawhid_body([_hid_report([0x0052])]))
+        self.assertEqual(rec.events, [("up", True)])
+
+        rec.listener._handle_keyboard_body(_rawkeyboard_body(0x26, WM_KEYUP))
+        self.assertEqual(rec.events, [("up", True)])
+
+        rec.listener._handle_hid_body(_rawhid_body([_hid_report([])]))
+        self.assertEqual(rec.events, [("up", True), ("up", False)])
 
 
 class StopWithoutStartTests(unittest.TestCase):

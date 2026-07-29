@@ -38,6 +38,11 @@ class DisplayRoundTripTests(unittest.TestCase):
         self.assertEqual(restored.kind, key_mapping.ActionKind.KEY_COMBO)
         self.assertEqual(restored.keys, ("win", "d"))
 
+    def test_modifier_only_combo_round_trips_through_button_mapping(self):
+        restored = _display_to_action("ctrl+shift")
+        self.assertEqual(restored.kind, key_mapping.ActionKind.KEY_COMBO)
+        self.assertEqual(restored.keys, ("ctrl", "shift"))
+
     def test_volume_up_round_trips(self):
         action = key_mapping.ButtonAction(key_mapping.ActionKind.SYSTEM_VOLUME_UP)
         restored = _display_to_action(_action_to_display(action))
@@ -79,7 +84,7 @@ class VoiceTriggerPresetTests(unittest.TestCase):
         )
         self.assertEqual(
             voice_hotkey_for_trigger_mode(key_mapping.VoiceTriggerMode.HOLD),
-            "ralt",
+            "lctrl+win",
         )
 
 
@@ -175,7 +180,7 @@ class BuildSaveModelTests(unittest.TestCase):
         with self.assertRaises(SettingsValidationError) as ctx:
             build_save_model(
                 button_display_map={},
-                hotkey_text="ctrl+shift",  # modifiers only - invalid
+                hotkey_text="ctrl",  # a single generic modifier is invalid
                 trigger_mode=key_mapping.VoiceTriggerMode.TOGGLE,
                 endpoint_display_text="",
                 base_config=self.base_config,

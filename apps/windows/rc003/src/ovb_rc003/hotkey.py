@@ -2,7 +2,10 @@
 
 Deliberately simple compared to the upstream reference's low-level-keyboard-
 hook shortcut capture: it models a hotkey as an ordered tuple of modifier
-tokens plus one final key token, serialized as "mod+mod+key" (e.g. "win+h").
+tokens plus one final trigger token, serialized as "mod+mod+key" (e.g.
+"win+h"). A chord made entirely from modifier keys, such as
+"lctrl+win", stores its last modifier as that final trigger token so it can
+use the same runtime and serialization path as ordinary key combinations.
 The actual OS-level key-down/key-up hooking lives in the Windows-only app
 wiring (app.py), not here.
 """
@@ -42,7 +45,7 @@ class HotkeySpec:
 
     def __post_init__(self) -> None:
         if not self.key:
-            raise HotkeyParseError("hotkey must have a non-modifier key")
+            raise HotkeyParseError("hotkey must have a trigger key")
         for modifier in self.modifiers:
             if modifier not in _VALID_MODIFIERS:
                 raise HotkeyParseError(f"unknown modifier: {modifier!r}")
@@ -70,6 +73,23 @@ class HotkeySpec:
             return cls(modifiers=(), key=tokens[0])
         modifiers = tuple(modifier for modifier in _MODIFIER_ORDER if modifier in tokens)
         keys = [token for token in tokens if token not in _VALID_MODIFIERS]
+        if not keys:
+            # A modifier-only chord still has a meaningful edge: press the
+            # earlier modifiers first and use the final modifier as the
+            # trigger. This is what makes settings such as left Ctrl + Win
+            # representable instead of incorrectly rejecting them as having
+            # no "real" key.
+            if len(tokens) < 2:
+                raise HotkeyParseError(
+                    f"hotkey must contain at least two keys: {text!r}"
+                )
+            trigger = tokens[-1]
+            modifiers = tuple(
+                modifier
+                for modifier in _MODIFIER_ORDER
+                if modifier in tokens[:-1]
+            )
+            return cls(modifiers=modifiers, key=trigger)
         if len(keys) != 1:
             raise HotkeyParseError(
                 f"hotkey must have exactly one non-modifier key: {text!r}"

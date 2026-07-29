@@ -7,7 +7,7 @@ Default table matches the XRBM-014 task book's "默认 Windows 映射候选":
 
 | RC003 按键 | Windows 候选动作 |
 | --- | --- |
-| 麦克风 | Win+H（按下开始、松开结束的 toggle 边沿；UI 可改） |
+| 麦克风 | 免按住：右 Alt+空格；长按：左 Ctrl+Win（UI 可改） |
 | 电源 | Escape |
 | 上 / 下 / 左 / 右 | 对应方向键 |
 | 确定 | Enter |
@@ -46,8 +46,13 @@ class VoiceTriggerMode(str, Enum):
 
 VOICE_HOTKEY_PRESETS = {
     VoiceTriggerMode.TOGGLE: "ralt+space",
-    VoiceTriggerMode.HOLD: "ralt",
+    VoiceTriggerMode.HOLD: "lctrl+win",
 }
+
+# These values were shipped by the first Windows builds. They are reserved
+# built-ins rather than user customizations, so config migration may replace
+# either spelling with the current physical shortcut.
+LEGACY_VOICE_HOTKEYS = frozenset({"ralt", "ralt+space"})
 
 
 def voice_hotkey_for_trigger_mode(trigger_mode: VoiceTriggerMode) -> str:

@@ -296,6 +296,7 @@ class RawInputButtonListener:
         self._stop_event = threading.Event()
         self._hwnd = None
         self._active_hid_usages: FrozenSet[int] = frozenset()
+        self._active_hid_buttons: FrozenSet[str] = frozenset()
         self._active_keyboard_buttons: FrozenSet[str] = frozenset()
         self._ready_event = threading.Event()
         self._start_error: Optional[BaseException] = None
@@ -482,14 +483,48 @@ class RawInputButtonListener:
         self._release_all()
 
     def _release_all(self) -> None:
-        for usage in self._active_hid_usages:
-            button = hid_identity.usage_to_button(usage)
-            if button:
-                self._on_button_event(button, False)
+        active_buttons = (
+            self._active_hid_buttons | self._active_keyboard_buttons
+        )
         self._active_hid_usages = frozenset()
-        for button in self._active_keyboard_buttons:
-            self._on_button_event(button, False)
+        self._active_hid_buttons = frozenset()
         self._active_keyboard_buttons = frozenset()
+        for button in sorted(active_buttons):
+            self._on_button_event(button, False)
+
+    def _update_source_button(self, source: str, button: str, is_pressed: bool) -> None:
+        """Update one input source and emit only a logical button edge.
+
+        Windows may expose one physical RC003 button through both the
+        translated keyboard path and the raw HID path.  It can also deliver
+        repeated keyboard key-down messages while a key is held.  Keep the
+        source-specific state, then compare the union before/after the
+        update.  The mapped action therefore sees one press and one release
+        for one physical hold, without a timing threshold that could eat a
+        legitimate quick second press.
+        """
+
+        before = self._active_keyboard_buttons | self._active_hid_buttons
+        if source == "keyboard":
+            if is_pressed:
+                self._active_keyboard_buttons = (
+                    self._active_keyboard_buttons | {button}
+                )
+            else:
+                self._active_keyboard_buttons = (
+                    self._active_keyboard_buttons - {button}
+                )
+        elif source == "hid":
+            if is_pressed:
+                self._active_hid_buttons = self._active_hid_buttons | {button}
+            else:
+                self._active_hid_buttons = self._active_hid_buttons - {button}
+        else:
+            raise ValueError(f"unknown Raw Input source: {source!r}")
+
+        after = self._active_keyboard_buttons | self._active_hid_buttons
+        if before != after and (button in before or button in after):
+            self._on_button_event(button, is_pressed)
 
     # -- background thread: window creation + message loop ----------------
 
@@ -828,11 +863,7 @@ class RawInputButtonListener:
         )
         if button is None:
             return
-        if is_pressed:
-            self._active_keyboard_buttons = self._active_keyboard_buttons | {button}
-        else:
-            self._active_keyboard_buttons = self._active_keyboard_buttons - {button}
-        self._on_button_event(button, is_pressed)
+        self._update_source_button("keyboard", button, is_pressed)
 
     def _handle_hid_body(self, body: bytes) -> None:
         try:
@@ -845,7 +876,21 @@ class RawInputButtonListener:
             except ValueError:
                 continue
             pressed, released = hid_identity.diff_usages(self._active_hid_usages, current)
+            previous_hid_buttons = self._active_hid_buttons
+            current_hid_buttons = frozenset(
+                button
+                for usage in current
+                for button in (hid_identity.usage_to_button(usage),)
+                if button
+            )
+            previous_logical_buttons = (
+                self._active_keyboard_buttons | previous_hid_buttons
+            )
+            current_logical_buttons = (
+                self._active_keyboard_buttons | current_hid_buttons
+            )
             self._active_hid_usages = current
+            self._active_hid_buttons = current_hid_buttons
             for usage in pressed:
                 button = hid_identity.usage_to_button(usage)
                 self._emit_raw_event(
@@ -856,7 +901,11 @@ class RawInputButtonListener:
                         report=report,
                     )
                 )
-                if button:
+                if (
+                    button
+                    and button in current_logical_buttons
+                    and button not in previous_logical_buttons
+                ):
                     self._on_button_event(button, True)
             for usage in released:
                 button = hid_identity.usage_to_button(usage)
@@ -868,7 +917,11 @@ class RawInputButtonListener:
                         report=report,
                     )
                 )
-                if button:
+                if (
+                    button
+                    and button in previous_logical_buttons
+                    and button not in current_logical_buttons
+                ):
                     self._on_button_event(button, False)
 
     def _emit_raw_event(self, event: RawInputEvent) -> None:

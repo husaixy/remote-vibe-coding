@@ -14,7 +14,7 @@ class HotkeySpecTests(unittest.TestCase):
         )
         self.assertEqual(
             key_mapping.voice_hotkey_for_trigger_mode(key_mapping.VoiceTriggerMode.HOLD),
-            "ralt",
+            "lctrl+win",
         )
 
     def test_right_alt_can_be_used_as_a_hold_trigger(self):
@@ -28,6 +28,12 @@ class HotkeySpecTests(unittest.TestCase):
         self.assertEqual(spec.modifiers, ("ralt",))
         self.assertEqual(spec.key, "space")
         self.assertEqual(spec.serialize(), "ralt+space")
+
+    def test_left_ctrl_win_round_trips_as_a_modifier_only_chord(self):
+        spec = hotkey.HotkeySpec.parse("left_ctrl+win")
+        self.assertEqual(spec.modifiers, ("lctrl",))
+        self.assertEqual(spec.key, "win")
+        self.assertEqual(spec.serialize(), "lctrl+win")
 
     def test_duplicate_modifiers_are_normalized(self):
         self.assertEqual(hotkey.HotkeySpec.parse("ctrl+ctrl+shift+p").serialize(), "ctrl+shift+p")
@@ -46,9 +52,15 @@ class HotkeySpecTests(unittest.TestCase):
         with self.assertRaises(hotkey.HotkeyParseError):
             hotkey.HotkeySpec.parse("")
 
-    def test_parse_rejects_modifiers_only(self):
+    def test_modifier_only_chord_is_accepted(self):
+        spec = hotkey.HotkeySpec.parse("ctrl+shift")
+        self.assertEqual(spec.modifiers, ("ctrl",))
+        self.assertEqual(spec.key, "shift")
+        self.assertEqual(spec.serialize(), "ctrl+shift")
+
+    def test_parse_rejects_a_single_generic_modifier(self):
         with self.assertRaises(hotkey.HotkeyParseError):
-            hotkey.HotkeySpec.parse("ctrl+shift")
+            hotkey.HotkeySpec.parse("ctrl")
 
     def test_parse_rejects_two_non_modifier_keys(self):
         with self.assertRaises(hotkey.HotkeyParseError):

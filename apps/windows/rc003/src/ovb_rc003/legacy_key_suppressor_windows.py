@@ -6,7 +6,8 @@ normal legacy keyboard event. The real RC003 microphone key does this as F5.
 
 This module installs a narrow low-level keyboard hook that swallows only the
 configured non-injected virtual-key codes. SendInput-generated keys carry the
-LLKHF_INJECTED flag, so the app's own Win+H voice hotkey is allowed through.
+LLKHF_INJECTED flag, so the app's configured host voice shortcut is allowed
+through.
 """
 
 from __future__ import annotations

@@ -11,14 +11,14 @@ Semantics (frozen by XRBM-018, replacing the XRBM-014 RETRY
 P1 #4 fix below it - see the XRBM-014 round 2 replan-check finding
 "Toggle release edge absent"):
 
-- TOGGLE mode issues a key TAP on mic-button-press (starting Windows' own
-  Win+H voice-typing toggle) and issues ANOTHER TAP when the device's own
+- TOGGLE mode issues a key TAP on mic-button-press (starting the configured
+  host voice shortcut) and issues ANOTHER TAP when the device's own
   AUDIO_STOP arrives (turning that same OS-level toggle back off). A single
   tap-only-on-press action (the previous XRBM-014 RETRY P1 #4 fix) avoided
   holding a modifier "stuck" for the duration of the stream, but left
-  Windows dictation running indefinitely after the device stopped
-  streaming, since Win+H is a toggle at the OS level and needs a second
-  press to turn back off.
+  the host voice mode running indefinitely after the device stopped
+  streaming, since the configured toggle shortcut needs a second press to
+  turn back off.
 - HOLD mode still holds the key down for the duration of the stream:
   key-down on mic-button-press, key-up when the device's own AUDIO_STOP
   arrives.

@@ -68,6 +68,8 @@ def key_bindings_path(root: Path = None) -> Path:  # type: ignore[assignment]
 
 
 def default_config() -> Dict[str, Any]:
+    from . import key_mapping
+
     return {
         "schema_version": SCHEMA_VERSION,
         # Existing installations predate multi-device selection and must
@@ -77,7 +79,9 @@ def default_config() -> Dict[str, Any]:
         "retry_delay": 5.0,
         "max_retry_delay": 60.0,
         "voice_shortcut_enabled": True,
-        "voice_hotkey": "ralt+space",
+        "voice_hotkey": key_mapping.voice_hotkey_for_trigger_mode(
+            key_mapping.VoiceTriggerMode.TOGGLE
+        ),
         "voice_trigger_mode": "toggle",
         # Empty until the user explicitly picks one in settings; voice fails
         # closed while this is empty (see audio_output.resolve_selected_endpoint).
@@ -142,15 +146,16 @@ def save_config(path: Path, config: Dict[str, Any]) -> None:
 def _normalize_voice_hotkey(config: Dict[str, Any]) -> None:
     """Keep the two built-in voice modes paired with their real shortcuts.
 
-    This only repairs the two built-in values. A user-supplied shortcut such
-    as ``win+h`` remains untouched, while stale ``toggle+ralt`` and
-    ``hold+ralt+space`` combinations cannot reach the runtime.
+    This only repairs the legacy built-in values. A user-supplied shortcut
+    such as ``win+h`` remains untouched, while stale right-Alt combinations
+    cannot reach the runtime.
     """
 
     current = str(config.get("voice_hotkey", "")).strip().lower()
-    if current not in {"ralt", "ralt+space"}:
-        return
     from . import key_mapping
+
+    if current not in key_mapping.LEGACY_VOICE_HOTKEYS:
+        return
 
     try:
         mode = key_mapping.VoiceTriggerMode(config.get("voice_trigger_mode"))

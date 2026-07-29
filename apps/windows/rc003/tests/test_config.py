@@ -55,7 +55,17 @@ class DefaultConfigPrivacyTests(unittest.TestCase):
             data.update({"voice_trigger_mode": "hold", "voice_hotkey": "ralt+space"})
             config.save_config(path, data)
             loaded = config.load_config(path)
-        self.assertEqual(loaded["voice_hotkey"], "ralt")
+        self.assertEqual(loaded["voice_hotkey"], "lctrl+win")
+
+    def test_load_preserves_a_user_custom_voice_shortcut(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "config.json"
+            path.write_text(
+                json.dumps({"voice_trigger_mode": "toggle", "voice_hotkey": "win+h"}),
+                encoding="utf-8",
+            )
+            loaded = config.load_config(path)
+        self.assertEqual(loaded["voice_hotkey"], "win+h")
 
 
 class SaveConfigPrivacyGuardTests(unittest.TestCase):

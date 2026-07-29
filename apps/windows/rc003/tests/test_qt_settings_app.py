@@ -339,7 +339,7 @@ class SettingsControllerTests(unittest.TestCase):
     def test_trigger_mode_switch_also_switches_the_paired_voice_hotkey(self):
         controller, _ = self._make_controller()
         controller.triggerModeIndex = 1
-        self.assertEqual(controller.hotkeyText, "ralt")
+        self.assertEqual(controller.hotkeyText, "lctrl+win")
         controller.triggerModeIndex = 0
         self.assertEqual(controller.hotkeyText, "ralt+space")
 

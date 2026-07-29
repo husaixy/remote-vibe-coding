@@ -75,6 +75,27 @@ class InputStructShapeTests(unittest.TestCase):
             win32_input._KEYEVENTF_SCANCODE | win32_input._KEYEVENTF_EXTENDEDKEY,
         )
 
+    def test_left_ctrl_uses_a_non_extended_physical_scan_code(self):
+        array, _ = win32_input._build_input_array(
+            [(win32_input.win32_keys.VK_CODES["lctrl"], False)]
+        )
+        keybd = array[0].union.ki
+        self.assertEqual(keybd.wVk, 0)
+        self.assertEqual(keybd.wScan, 0x1D)
+        self.assertEqual(keybd.dwFlags, win32_input._KEYEVENTF_SCANCODE)
+
+    def test_left_win_uses_the_extended_physical_scan_code(self):
+        array, _ = win32_input._build_input_array(
+            [(win32_input.win32_keys.VK_CODES["win"], False)]
+        )
+        keybd = array[0].union.ki
+        self.assertEqual(keybd.wVk, 0)
+        self.assertEqual(keybd.wScan, 0x5B)
+        self.assertEqual(
+            keybd.dwFlags,
+            win32_input._KEYEVENTF_SCANCODE | win32_input._KEYEVENTF_EXTENDEDKEY,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

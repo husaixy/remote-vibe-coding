@@ -116,12 +116,22 @@ _EXTENDED_KEYS = frozenset(
     }
 )
 
-# VK_RMENU alone is layout-dependent in some consumers. The physical
-# right-Alt key is the extended 0x38 scan code (E0 38). Sending this as a
-# scan-code event makes global shortcut listeners receive a real right-Alt
-# edge instead of a generic Alt/menu gesture.
+# Modifier VK codes are intentionally emitted as physical scan-code events.
+# This keeps generic modifiers on their left-side physical key and preserves
+# left/right identity for directional modifiers. The boolean records whether
+# the scan code carries the E0 extended prefix.
 _PHYSICAL_SCAN_CODES = {
-    win32_keys.VK_CODES["ralt"]: 0x38,
+    win32_keys.VK_CODES["ctrl"]: (0x1D, False),
+    win32_keys.VK_CODES["lctrl"]: (0x1D, False),
+    win32_keys.VK_CODES["rctrl"]: (0x1D, True),
+    win32_keys.VK_CODES["shift"]: (0x2A, False),
+    win32_keys.VK_CODES["lshift"]: (0x2A, False),
+    win32_keys.VK_CODES["rshift"]: (0x36, False),
+    win32_keys.VK_CODES["alt"]: (0x38, False),
+    win32_keys.VK_CODES["lalt"]: (0x38, False),
+    win32_keys.VK_CODES["ralt"]: (0x38, True),
+    win32_keys.VK_CODES["win"]: (0x5B, True),
+    win32_keys.VK_CODES["rwin"]: (0x5C, True),
 }
 
 RawSender = Callable[[Sequence[Tuple[int, bool]]], int]
@@ -144,9 +154,12 @@ def _build_input_array(events: Sequence[Tuple[int, bool]]):
         flags = _KEYEVENTF_KEYUP if key_up else 0
         if vk in _EXTENDED_KEYS:
             flags |= _KEYEVENTF_EXTENDEDKEY
-        scan_code = _PHYSICAL_SCAN_CODES.get(vk)
-        if scan_code is not None:
-            flags |= _KEYEVENTF_SCANCODE | _KEYEVENTF_EXTENDEDKEY
+        physical_scan = _PHYSICAL_SCAN_CODES.get(vk)
+        if physical_scan is not None:
+            scan_code, is_extended = physical_scan
+            flags |= _KEYEVENTF_SCANCODE
+            if is_extended:
+                flags |= _KEYEVENTF_EXTENDEDKEY
             keybd_input = KEYBDINPUT(
                 wVk=0,
                 wScan=scan_code,

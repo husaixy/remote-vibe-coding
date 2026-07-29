@@ -6,6 +6,7 @@ Split out from the actual Win32 ``SendInput`` call (see app.py) so the token
 
 from __future__ import annotations
 
+import re
 from typing import List, Sequence
 
 # Standard Windows virtual-key codes (winuser.h).
@@ -94,6 +95,9 @@ class UnknownKeyTokenError(ValueError):
     pass
 
 
+_DYNAMIC_VK_TOKEN = re.compile(r"^vk_([0-9a-f]{2})$")
+
+
 def resolve_vk_codes(tokens: Sequence[str]) -> List[int]:
     """Resolve an ordered sequence of key tokens (e.g. ``("win", "d")``) into
     Windows virtual-key codes, raising if any token is unrecognized.
@@ -102,7 +106,11 @@ def resolve_vk_codes(tokens: Sequence[str]) -> List[int]:
     codes = []
     for token in tokens:
         key = token.strip().lower()
-        if key not in VK_CODES:
+        if key in VK_CODES:
+            codes.append(VK_CODES[key])
+            continue
+        dynamic = _DYNAMIC_VK_TOKEN.fullmatch(key)
+        if dynamic is None:
             raise UnknownKeyTokenError(f"unknown key token: {token!r}")
-        codes.append(VK_CODES[key])
+        codes.append(int(dynamic.group(1), 16))
     return codes

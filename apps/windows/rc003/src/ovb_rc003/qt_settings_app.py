@@ -107,6 +107,7 @@ from . import (
     config,
     device_catalog,
     hotkey,
+    hotkey_capture_windows,
     key_mapping,
     logging_setup,
     remote_layout,
@@ -121,9 +122,9 @@ from . import (
 # These are the choices offered in each editable ordinary-button mapping
 # row's combo box - settings_ui._PRESET_KEY_COMBOS plus the two system-
 # volume actions _action_to_display()/_display_to_action() also recognize.
-# The combo box stays editable (not "readonly"): any other "mod+mod+key"
-# text is still accepted via hotkey.HotkeySpec.parse, same as the previous
-# Tk Combobox.
+# The combo box stays editable (not "readonly"): any other ordinary chord or
+# modifier-only chord is still accepted via hotkey.HotkeySpec.parse, same as
+# the previous Tk Combobox.
 _PRESET_ACTION_OPTIONS: List[str] = list(settings_ui._PRESET_KEY_COMBOS) + [
     "系统音量 +",
     "系统音量 −",
@@ -580,6 +581,9 @@ def _load_qt_classes() -> dict:
         keyDetectionActiveChanged = Signal()
         keyDetectionTextChanged = Signal()
         _rawKeyDetected = Signal(str, str)
+        hotkeyCaptured = Signal(str)
+        hotkeyCaptureError = Signal(str)
+        _hotkeyCaptureResult = Signal(str)
 
         _TRIGGER_MODE_ORDER = tuple(key_mapping.VoiceTriggerMode)
         _DEVICE_ORDER = tuple(profile.device_id for profile in device_catalog.DEVICE_PROFILES)
@@ -621,6 +625,8 @@ def _load_qt_classes() -> dict:
                 "尚未检测真实按键。点击“检测真实按键”后，再按一次遥控器按键。"
             )
             self._rawKeyDetected.connect(self._on_raw_key_detected)
+            self._hotkey_capture = None
+            self._hotkeyCaptureResult.connect(self._on_hotkey_capture_result)
 
             self._endpoint_options: List[str] = []
             self._selected_endpoint_index = -1
@@ -734,6 +740,11 @@ def _load_qt_classes() -> dict:
             self._set_key_detection_text(
                 f"{result}{details} 现在可设置该行的 Windows 映射并保存。"
             )
+
+        def _on_hotkey_capture_result(self, chord: str) -> None:
+            """Forward a hook-thread result to QML on the GUI thread."""
+
+            self.hotkeyCaptured.emit(chord)
 
         def _save(self) -> bool:
             """Same validation as before (settings_ui.build_save_model);
@@ -1012,6 +1023,36 @@ def _load_qt_classes() -> dict:
             self._set_key_detection_text(
                 "正在监听 RC003。请现在按一次遥控器按键；不会执行该键的映射动作。"
             )
+
+        @Slot()
+        def startHotkeyCapture(self) -> None:
+            """Start the EXE-owned physical keyboard shortcut recorder."""
+
+            if self._hotkey_capture is not None:
+                return
+            capture = hotkey_capture_windows.HotkeyCapture(
+                lambda chord: self._hotkeyCaptureResult.emit(chord)
+            )
+            self._hotkey_capture = capture
+            try:
+                capture.start()
+            except Exception as exc:  # noqa: BLE001 - surface in the dialog
+                self._hotkey_capture = None
+                self.hotkeyCaptureError.emit(f"无法启动真实键盘录制：{exc}")
+                return
+
+        @Slot()
+        def stopHotkeyCapture(self) -> None:
+            """Stop the physical recorder, including Cancel/window close."""
+
+            capture = self._hotkey_capture
+            self._hotkey_capture = None
+            if capture is None:
+                return
+            try:
+                capture.stop()
+            except Exception as exc:  # noqa: BLE001 - never crash the settings UI
+                self.hotkeyCaptureError.emit(f"停止真实键盘录制时出错：{exc}")
 
         @Slot()
         def stopKeyDetection(self) -> None:
@@ -1612,6 +1653,7 @@ def run_settings_window() -> int:
 
         return app.exec()
     finally:
+        controller.stopHotkeyCapture()
         controller.stopKeyDetection()
         # XRBM-035: called HERE, synchronously - whether app.exec()
         # returned normally, engine.load() raised, rootObjects() was empty,
