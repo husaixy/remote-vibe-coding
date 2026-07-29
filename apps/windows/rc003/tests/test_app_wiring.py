@@ -287,6 +287,34 @@ class HostHotkeyFailureSuppressesMicOpenTests(_AppWiringTestCase):
         self.assertTrue(self.app._voice.active)
         self.assertEqual(self.app._ble_session.mic_open_calls, 0)
 
+    def test_next_mic_button_after_the_late_duplicate_still_triggers_voice(self):
+        hotkey_calls = []
+        original = win32_input.send_key_combo_tap
+        win32_input.send_key_combo_tap = lambda tokens: hotkey_calls.append(tokens)
+        try:
+            self.app._on_control_event(AudioStarted(session_id=1))
+            self.app._on_control_event(MicButtonPressed())
+            self.app._on_control_event(MicButtonPressed())
+        finally:
+            win32_input.send_key_combo_tap = original
+
+        self.assertEqual(hotkey_calls, [("ralt", "space"), ("ralt", "space")])
+        self.assertTrue(self.app._voice.active)
+
+    def test_mic_button_before_audio_start_does_not_send_a_second_alt(self):
+        hotkey_calls = []
+        original = win32_input.send_key_combo_tap
+        win32_input.send_key_combo_tap = lambda tokens: hotkey_calls.append(tokens)
+        try:
+            self.app._on_control_event(MicButtonPressed())
+            self.app._on_control_event(AudioStarted(session_id=1))
+        finally:
+            win32_input.send_key_combo_tap = original
+
+        self.assertEqual(hotkey_calls, [("ralt", "space")])
+        self.assertTrue(self.app._voice.active)
+        self.assertEqual(self.app._ble_session.mic_open_calls, 1)
+
     def test_no_usable_endpoint_suppresses_hotkey_and_mic_open(self):
         self.app._playback = None
         self.app._config["output_endpoint_name"] = "some endpoint that is not open"

@@ -98,6 +98,7 @@ class RC003App:
             key_mapping.VoiceTriggerMode(self._config["voice_trigger_mode"])
         )
         self._voice_hotkey = hotkey.HotkeySpec.parse(self._config["voice_hotkey"])
+        self._voice_audio_start_fallback_pending = False
         self._ble_session: Optional[ble_transport_winrt.RC003BleSession] = None
         self._hid_listener: Optional[raw_input_windows.RawInputButtonListener] = None
         self._legacy_key_suppressor: Optional[
@@ -221,6 +222,7 @@ class RC003App:
         failures: List[str] = []
 
         try:
+            self._voice_audio_start_fallback_pending = False
             reset_action = self._voice.reset()
             if reset_action is not None and not self._apply_voice_action(reset_action):
                 # _apply_voice_action() already logged the specific failure.
@@ -344,15 +346,24 @@ class RC003App:
                 event.capabilities.frame_size,
             )
         elif isinstance(event, MicButtonPressed):
-            self._logger.info("voice mic trigger received from ATVV control channel")
-            self._handle_mic_button_pressed()
+            if self._voice_audio_start_fallback_pending:
+                self._voice_audio_start_fallback_pending = False
+                self._logger.info(
+                    "voice mic trigger ignored: matched prior AUDIO_STARTED fallback"
+                )
+            else:
+                self._logger.info("voice mic trigger received from ATVV control channel")
+                self._handle_mic_button_pressed()
         elif isinstance(event, AudioStarted):
             self._logger.info("voice audio started")
+            self._voice_audio_start_fallback_pending = False
             if not self._voice.active:
                 self._logger.info("voice audio start used as microphone trigger")
                 self._handle_mic_button_pressed(send_device_open=False)
+                self._voice_audio_start_fallback_pending = self._voice.active
         elif isinstance(event, AudioStopped):
             self._logger.info("voice audio stopped")
+            self._voice_audio_start_fallback_pending = False
             action = self._voice.on_audio_stopped()
             if action is not None and not self._apply_voice_action(action):
                 # Same rule as _cleanup_once(): on_audio_stopped() already
@@ -384,15 +395,6 @@ class RC003App:
 
         if self._ble_session is None:
             self._logger.info("voice ignored: BLE voice session is not connected")
-            return
-
-        # ATVV may report the physical mic press and AUDIO_STARTED in either
-        # order.  AUDIO_STARTED already opens the host voice action, so a
-        # late MIC_BUTTON must not send a second shortcut sequence.
-        if self._voice.active:
-            self._logger.info(
-                "voice trigger ignored: host voice action already active"
-            )
             return
 
         if not self._open_playback_for_new_session():
