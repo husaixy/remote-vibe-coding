@@ -28,7 +28,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, Tuple
+from typing import Dict, Optional, Tuple
 
 
 class ActionKind(str, Enum):
@@ -53,6 +53,33 @@ VOICE_HOTKEY_PRESETS = {
 # built-ins rather than user customizations, so config migration may replace
 # either spelling with the current physical shortcut.
 LEGACY_VOICE_HOTKEYS = frozenset({"ralt", "ralt+space"})
+
+
+def voice_trigger_mode_for_hotkey(hotkey_text: str) -> Optional[VoiceTriggerMode]:
+    """Infer the built-in voice trigger semantics from a recorded chord.
+
+    The two Doubao voice modes are not interchangeable: ``ralt+space`` is a
+    toggle, while Ctrl+Win is held for the duration of speech.  A physical
+    recorder can return either generic or directional Win, and users may
+    press the keys in either order, so compare the normalized token set.
+    Return ``None`` for a genuinely custom shortcut and leave its selected
+    mode under user control.
+    """
+
+    tokens = frozenset(
+        token.strip().lower()
+        for token in str(hotkey_text).split("+")
+        if token.strip()
+    )
+    if tokens == frozenset({"ralt", "space"}):
+        return VoiceTriggerMode.TOGGLE
+    if (
+        len(tokens) == 2
+        and "lctrl" in tokens
+        and bool(tokens & {"win", "lwin", "rwin"})
+    ):
+        return VoiceTriggerMode.HOLD
+    return None
 
 
 def voice_hotkey_for_trigger_mode(trigger_mode: VoiceTriggerMode) -> str:

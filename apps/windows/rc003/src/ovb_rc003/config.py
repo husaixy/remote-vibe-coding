@@ -146,15 +146,18 @@ def save_config(path: Path, config: Dict[str, Any]) -> None:
 def _normalize_voice_hotkey(config: Dict[str, Any]) -> None:
     """Keep the two built-in voice modes paired with their real shortcuts.
 
-    This only repairs the legacy built-in values. A user-supplied shortcut
-    such as ``win+h`` remains untouched, while stale right-Alt combinations
-    cannot reach the runtime.
+    Legacy built-in values are repaired, and a recorded built-in chord also
+    restores its required mode if the UI previously saved the two fields out
+    of sync. A user-supplied shortcut such as ``win+h`` remains untouched.
     """
 
     current = str(config.get("voice_hotkey", "")).strip().lower()
     from . import key_mapping
 
     if current not in key_mapping.LEGACY_VOICE_HOTKEYS:
+        inferred_mode = key_mapping.voice_trigger_mode_for_hotkey(current)
+        if inferred_mode is not None:
+            config["voice_trigger_mode"] = inferred_mode.value
         return
 
     try:

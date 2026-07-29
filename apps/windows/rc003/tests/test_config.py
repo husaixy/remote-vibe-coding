@@ -67,6 +67,19 @@ class DefaultConfigPrivacyTests(unittest.TestCase):
             loaded = config.load_config(path)
         self.assertEqual(loaded["voice_hotkey"], "win+h")
 
+    def test_load_repairs_recorded_left_ctrl_win_to_hold_mode(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "config.json"
+            path.write_text(
+                json.dumps(
+                    {"voice_trigger_mode": "toggle", "voice_hotkey": "lctrl+lwin"}
+                ),
+                encoding="utf-8",
+            )
+            loaded = config.load_config(path)
+        self.assertEqual(loaded["voice_trigger_mode"], "hold")
+        self.assertEqual(loaded["voice_hotkey"], "lctrl+lwin")
+
 
 class SaveConfigPrivacyGuardTests(unittest.TestCase):
     def test_save_config_rejects_forbidden_keys(self):

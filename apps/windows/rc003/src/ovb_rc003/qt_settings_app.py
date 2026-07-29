@@ -744,7 +744,20 @@ def _load_qt_classes() -> dict:
         def _on_hotkey_capture_result(self, chord: str) -> None:
             """Forward a hook-thread result to QML on the GUI thread."""
 
+            inferred_mode = key_mapping.voice_trigger_mode_for_hotkey(chord)
+            if inferred_mode is not None:
+                self._set_trigger_mode_preserving_hotkey(inferred_mode)
             self.hotkeyCaptured.emit(chord)
+
+        def _set_trigger_mode_preserving_hotkey(
+            self, trigger_mode: key_mapping.VoiceTriggerMode
+        ) -> None:
+            """Change the mode preset without overwriting a just-recorded chord."""
+
+            index = self._TRIGGER_MODE_ORDER.index(trigger_mode)
+            if index != self._trigger_mode_index:
+                self._trigger_mode_index = index
+                self.triggerModeIndexChanged.emit()
 
         def _save(self) -> bool:
             """Same validation as before (settings_ui.build_save_model);

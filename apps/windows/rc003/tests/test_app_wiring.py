@@ -238,16 +238,46 @@ class HostHotkeyFailureSuppressesMicOpenTests(_AppWiringTestCase):
         self.assertEqual(self.app._ble_session.mic_open_calls, 1)
         self.assertTrue(self.app._voice.active)
 
-    def test_hid_mic_button_press_does_not_duplicate_atvv_voice_flow(self):
+    def test_raw_input_mic_button_triggers_voice_before_atvv_audio(self):
+        hotkey_calls = []
         original = win32_input.send_key_combo_tap
-        win32_input.send_key_combo_tap = lambda tokens: None
+        win32_input.send_key_combo_tap = lambda tokens: hotkey_calls.append(tokens)
         try:
             self.app._on_button_event("mic", True)
+            self.app._on_control_event(AudioStarted(session_id=1))
+            self.app._on_control_event(MicButtonPressed())
         finally:
             win32_input.send_key_combo_tap = original
 
+        self.assertEqual(hotkey_calls, [("ralt", "space")])
         self.assertEqual(self.app._ble_session.mic_open_calls, 0)
-        self.assertFalse(self.app._voice.active)
+        self.assertTrue(self.app._voice.active)
+
+    def test_raw_input_mic_button_release_does_not_close_or_retrigger_voice(self):
+        hotkey_calls = []
+        original = win32_input.send_key_combo_tap
+        win32_input.send_key_combo_tap = lambda tokens: hotkey_calls.append(tokens)
+        try:
+            self.app._on_button_event("mic", True)
+            self.app._on_button_event("mic", False)
+        finally:
+            win32_input.send_key_combo_tap = original
+
+        self.assertEqual(hotkey_calls, [("ralt", "space")])
+        self.assertTrue(self.app._voice.active)
+
+    def test_suppressed_legacy_f5_uses_the_same_voice_trigger_path(self):
+        hotkey_calls = []
+        original = win32_input.send_key_combo_tap
+        win32_input.send_key_combo_tap = lambda tokens: hotkey_calls.append(tokens)
+        try:
+            self.app._on_legacy_key_event(0x74, True)
+            self.app._on_legacy_key_event(0x74, False)
+        finally:
+            win32_input.send_key_combo_tap = original
+
+        self.assertEqual(hotkey_calls, [("ralt", "space")])
+        self.assertTrue(self.app._voice.active)
 
     def test_hid_mic_button_is_ignored_until_ble_session_is_connected(self):
         self.app._ble_session = None

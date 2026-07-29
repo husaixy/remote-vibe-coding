@@ -343,6 +343,13 @@ class SettingsControllerTests(unittest.TestCase):
         controller.triggerModeIndex = 0
         self.assertEqual(controller.hotkeyText, "ralt+space")
 
+    def test_recording_left_ctrl_win_switches_to_hold_without_replacing_capture(self):
+        controller, _ = self._make_controller()
+        controller._on_hotkey_capture_result("lctrl+lwin")
+        self.assertEqual(controller.triggerModeIndex, 1)
+        controller.hotkeyText = "lctrl+lwin"
+        self.assertEqual(controller.hotkeyText, "lctrl+lwin")
+
     def test_launch_status_starts_as_the_not_started_constant(self):
         controller, _ = self._make_controller()
         self.assertEqual(controller.launchStatusText, settings_ui.LAUNCH_NOT_STARTED_TEXT)

@@ -49,8 +49,9 @@ class KBDLLHOOKSTRUCT(ctypes.Structure):
 
 
 class LegacyKeySuppressor:
-    def __init__(self, suppress_vk_codes) -> None:
+    def __init__(self, suppress_vk_codes, on_key_event: Optional[Callable[[int, bool], None]] = None) -> None:
         self._suppress_vk_codes: FrozenSet[int] = frozenset(int(vk) for vk in suppress_vk_codes)
+        self._on_key_event = on_key_event
         self._thread: Optional[threading.Thread] = None
         self._ready_event = threading.Event()
         self._stop_event = threading.Event()
@@ -67,6 +68,27 @@ class LegacyKeySuppressor:
         if flags & LLKHF_INJECTED:
             return False
         return int(vk_code) in self._suppress_vk_codes
+
+    def handle_key_event(self, vk_code: int, flags: int, is_pressed: bool) -> bool:
+        """Suppress one physical legacy event and optionally report its edge.
+
+        Raw Input is the preferred device-scoped path, but Windows can expose
+        the RC003 voice button only as a translated F5 legacy event. The
+        caller is already swallowing that event, so reporting it here lets
+        the application use the real key edge without allowing F5 to leak to
+        the foreground window. Injected host shortcuts never enter this path.
+        """
+
+        if not self.should_suppress(vk_code, flags):
+            return False
+        if self._on_key_event is not None:
+            try:
+                self._on_key_event(int(vk_code), bool(is_pressed))
+            except Exception:
+                # The hook must remain fail-closed even if the application
+                # callback is temporarily unavailable.
+                pass
+        return True
 
     def start(
         self,
@@ -197,6 +219,7 @@ class LegacyKeySuppressor:
             WM_SYSKEYUP,
         ):
             event = KBDLLHOOKSTRUCT.from_address(int(l_param))
-            if self.should_suppress(event.vkCode, event.flags):
+            is_pressed = int(w_param) in (WM_KEYDOWN, WM_SYSKEYDOWN)
+            if self.handle_key_event(event.vkCode, event.flags, is_pressed):
                 return 1
         return user32.CallNextHookEx(self._hook, n_code, w_param, l_param)

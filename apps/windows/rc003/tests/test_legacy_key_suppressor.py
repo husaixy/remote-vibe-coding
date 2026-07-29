@@ -18,6 +18,19 @@ class LegacyKeySuppressorDecisionTests(unittest.TestCase):
         self.assertFalse(gate.should_suppress(0x5B, 0))  # VK_LWIN
         self.assertFalse(gate.should_suppress(0x48, 0))  # H
 
+    def test_suppressed_physical_edge_is_forwarded_without_forwarding_injected_input(self):
+        events = []
+        gate = suppressor.LegacyKeySuppressor(
+            {0x74}, on_key_event=lambda vk_code, is_pressed: events.append(
+                (vk_code, is_pressed)
+            )
+        )
+
+        self.assertTrue(gate.handle_key_event(0x74, 0, True))
+        self.assertTrue(gate.handle_key_event(0x74, 0, False))
+        self.assertFalse(gate.handle_key_event(0x74, suppressor.LLKHF_INJECTED, True))
+        self.assertEqual(events, [(0x74, True), (0x74, False)])
+
 
 class LegacyKeySuppressorLifecycleTests(unittest.TestCase):
     def test_empty_suppressor_is_a_noop(self):

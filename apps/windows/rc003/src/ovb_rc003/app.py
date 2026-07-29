@@ -56,6 +56,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
 from typing import List, Optional
 
 from . import (
@@ -99,6 +100,11 @@ class RC003App:
         )
         self._voice_hotkey = hotkey.HotkeySpec.parse(self._config["voice_hotkey"])
         self._voice_audio_start_fallback_pending = False
+        # Raw Input and the ATVV control channel arrive on different worker
+        # threads. Serialize the voice state machine so one physical press
+        # cannot race into two host shortcut deliveries.
+        self._voice_trigger_lock = threading.Lock()
+        self._voice_raw_input_trigger_pending = False
         self._ble_session: Optional[ble_transport_winrt.RC003BleSession] = None
         self._hid_listener: Optional[raw_input_windows.RawInputButtonListener] = None
         self._legacy_key_suppressor: Optional[
@@ -194,10 +200,12 @@ class RC003App:
             return
 
         # RC003's voice key is reported by Windows' keyboard class as F5 as
-        # well as through ATVV.  The ATVV event is the authoritative voice
-        # mapping; this narrowly intercepts only that legacy F5 leak so the
-        # host does not receive a second, unrelated F5 action.
-        self._legacy_key_suppressor = legacy_key_suppressor_windows.LegacyKeySuppressor({0x74})
+        # well as through ATVV. Raw Input is preferred when available; this
+        # narrowly intercepts the same legacy F5 leak and feeds its physical
+        # edge into the voice state machine before audio starts.
+        self._legacy_key_suppressor = legacy_key_suppressor_windows.LegacyKeySuppressor(
+            {0x74}, on_key_event=self._on_legacy_key_event
+        )
         try:
             self._legacy_key_suppressor.start()
             self._logger.info("startup: RC003 voice legacy-key guard enabled")
@@ -222,17 +230,19 @@ class RC003App:
         failures: List[str] = []
 
         try:
-            self._voice_audio_start_fallback_pending = False
-            reset_action = self._voice.reset()
-            if reset_action is not None and not self._apply_voice_action(reset_action):
-                # _apply_voice_action() already logged the specific failure.
-                # reset() already cleared the controller's own pending
-                # state before we knew delivery would fail - restore it so
-                # a HOLD-mode key isn't recorded as released while it may
-                # still be physically down, and a TOGGLE-mode closing tap
-                # isn't forgotten (XRBM-019 review round 1 P1 #4).
-                self._voice.restore_pending(reset_action)
-                failures.append("voice hotkey release did not fully deliver; state retained")
+            with self._voice_trigger_lock:
+                self._voice_audio_start_fallback_pending = False
+                self._voice_raw_input_trigger_pending = False
+                reset_action = self._voice.reset()
+                if reset_action is not None and not self._apply_voice_action(reset_action):
+                    # _apply_voice_action() already logged the specific failure.
+                    # reset() already cleared the controller's own pending
+                    # state before we knew delivery would fail - restore it so
+                    # a HOLD-mode key isn't recorded as released while it may
+                    # still be physically down, and a TOGGLE-mode closing tap
+                    # isn't forgotten (XRBM-019 review round 1 P1 #4).
+                    self._voice.restore_pending(reset_action)
+                    failures.append("voice hotkey release did not fully deliver; state retained")
         except Exception:
             self._logger.exception("cleanup: releasing the voice hotkey failed")
 
@@ -293,13 +303,52 @@ class RC003App:
         self._logger.info("ATVV protocol error, requesting reconnect: %s", exc)
         self._supervisor.request_reconnect()
 
-    # -- HID button events (all buttons except mic; back is presently
-    #    unmapped, see frida_compat.py) ------------------------------------
+    def _on_legacy_key_event(self, vk_code: int, is_pressed: bool) -> None:
+        """Use the already-suppressed physical F5 leak as a voice edge.
+
+        Some RC003 firmware/Windows input-class combinations do not produce
+        a device-scoped Raw Input keyboard record for the microphone button,
+        even though the same physical press is visible to the low-level hook
+        as F5. The hook is configured only for that legacy F5 and swallows it
+        before it reaches the foreground app; route the edge through the same
+        deduplicated voice path as Raw Input.
+        """
+
+        if vk_code == 0x74:
+            if is_pressed:
+                self._logger.info(
+                    "voice legacy F5 trigger received from low-level keyboard hook"
+                )
+            self._on_button_event("mic", is_pressed)
+
+    # -- HID button events --------------------------------------------------
 
     def _on_button_event(self, button_id: str, is_pressed: bool) -> None:
         if button_id == "mic":
-            if is_pressed:
-                self._logger.info("voice HID fallback ignored; waiting for ATVV audio start")
+            if not is_pressed:
+                return
+            with self._voice_trigger_lock:
+                if self._voice.active:
+                    self._logger.info(
+                        "voice physical trigger ignored: voice session already active"
+                    )
+                    return
+                if self._voice_raw_input_trigger_pending:
+                    self._logger.info(
+                        "voice physical trigger ignored: trigger already in progress"
+                    )
+                    return
+                # The physical key is the earliest reliable signal. Send the
+                # host shortcut before the device's audio-start event so
+                # voice input is already armed when PCM arrives. The matching
+                # ATVV event is consumed by this pending latch.
+                self._voice_raw_input_trigger_pending = True
+                self._logger.info(
+                    "voice physical mic trigger received before audio start"
+                )
+                self._handle_mic_button_pressed(send_device_open=False)
+                if not self._voice.active:
+                    self._voice_raw_input_trigger_pending = False
             return
         if not is_pressed:
             return  # this candidate maps simple taps; hold-repeat is future work
@@ -346,40 +395,49 @@ class RC003App:
                 event.capabilities.frame_size,
             )
         elif isinstance(event, MicButtonPressed):
-            if self._voice_audio_start_fallback_pending:
-                self._voice_audio_start_fallback_pending = False
-                self._logger.info(
-                    "voice mic trigger ignored: matched prior AUDIO_STARTED fallback"
-                )
-            else:
-                self._logger.info("voice mic trigger received from ATVV control channel")
-                self._handle_mic_button_pressed()
+            with self._voice_trigger_lock:
+                if self._voice_raw_input_trigger_pending:
+                    self._voice_raw_input_trigger_pending = False
+                    self._logger.info(
+                        "voice mic trigger ignored: matched prior Raw Input trigger"
+                    )
+                elif self._voice_audio_start_fallback_pending:
+                    self._voice_audio_start_fallback_pending = False
+                    self._logger.info(
+                        "voice mic trigger ignored: matched prior AUDIO_STARTED fallback"
+                    )
+                else:
+                    self._logger.info("voice mic trigger received from ATVV control channel")
+                    self._handle_mic_button_pressed()
         elif isinstance(event, AudioStarted):
-            self._logger.info("voice audio started")
-            self._voice_audio_start_fallback_pending = False
-            if not self._voice.active:
-                self._logger.info("voice audio start used as microphone trigger")
-                self._handle_mic_button_pressed(send_device_open=False)
-                self._voice_audio_start_fallback_pending = self._voice.active
+            with self._voice_trigger_lock:
+                self._logger.info("voice audio started")
+                self._voice_audio_start_fallback_pending = False
+                if not self._voice.active:
+                    self._logger.info("voice audio start used as microphone trigger")
+                    self._handle_mic_button_pressed(send_device_open=False)
+                    self._voice_audio_start_fallback_pending = self._voice.active
         elif isinstance(event, AudioStopped):
-            self._logger.info("voice audio stopped")
-            self._voice_audio_start_fallback_pending = False
-            action = self._voice.on_audio_stopped()
-            if action is not None and not self._apply_voice_action(action):
-                # Same rule as _cleanup_once(): on_audio_stopped() already
-                # cleared the controller's pending state before we knew
-                # whether the closing action (HOLD's KEY_UP or TOGGLE's
-                # closing TAP) actually delivered. A failure here must not
-                # be recorded as a clean close - restore the owed state and
-                # fail closed by requesting a reconnect, the same way a BLE
-                # disconnect or a playback write failure does (XRBM-019
-                # review round 1 P1 #4).
-                self._voice.restore_pending(action)
-                self._logger.info(
-                    "voice closing action failed to fully deliver; state retained, "
-                    "requesting reconnect"
-                )
-                self._supervisor.request_reconnect()
+            with self._voice_trigger_lock:
+                self._logger.info("voice audio stopped")
+                self._voice_audio_start_fallback_pending = False
+                self._voice_raw_input_trigger_pending = False
+                action = self._voice.on_audio_stopped()
+                if action is not None and not self._apply_voice_action(action):
+                    # Same rule as _cleanup_once(): on_audio_stopped() already
+                    # cleared the controller's pending state before we knew
+                    # whether the closing action (HOLD's KEY_UP or TOGGLE's
+                    # closing TAP) actually delivered. A failure here must not
+                    # be recorded as a clean close - restore the owed state and
+                    # fail closed by requesting a reconnect, the same way a BLE
+                    # disconnect or a playback write failure does (XRBM-019
+                    # review round 1 P1 #4).
+                    self._voice.restore_pending(action)
+                    self._logger.info(
+                        "voice closing action failed to fully deliver; state retained, "
+                        "requesting reconnect"
+                    )
+                    self._supervisor.request_reconnect()
 
     def _handle_mic_button_pressed(self, *, send_device_open: bool = True) -> None:
         """Resolve and open the user-selected output endpoint FIRST; only
