@@ -75,7 +75,9 @@ def default_config() -> Dict[str, Any]:
         # Existing installations predate multi-device selection and must
         # continue to open as RC003 rather than silently switching behavior.
         "selected_device_profile": "xiaomi-rc003",
-        "gain_db": 0.0,
+        # RC003's upstream decoder applies a 10 dB speech gain before the
+        # 16 kHz PCM is sent to the virtual microphone.
+        "gain_db": 10.0,
         "retry_delay": 5.0,
         "max_retry_delay": 60.0,
         "voice_shortcut_enabled": True,
@@ -154,15 +156,34 @@ def _normalize_voice_hotkey(config: Dict[str, Any]) -> None:
     current = str(config.get("voice_hotkey", "")).strip().lower()
     from . import key_mapping
 
+    # The former HOLD preset was Ctrl+Win. It is a shipped built-in, not a
+    # user customization: migrate it to the right-Alt physical bridge and
+    # repair the mode even if the two old fields were saved out of sync.
+    if current in {"lctrl+win", "lctrl+lwin"}:
+        config["voice_trigger_mode"] = key_mapping.VoiceTriggerMode.HOLD.value
+        config["voice_hotkey"] = key_mapping.voice_hotkey_for_trigger_mode(
+            key_mapping.VoiceTriggerMode.HOLD
+        )
+        return
+
+    try:
+        mode = key_mapping.VoiceTriggerMode(config.get("voice_trigger_mode"))
+    except ValueError:
+        mode = None
+
+    # ``lalt`` was an invalid recording of the RC003 F5 leak. Repair it only
+    # for the built-in HOLD mode; arbitrary user shortcuts remain untouched.
+    if mode == key_mapping.VoiceTriggerMode.HOLD and current == "lalt":
+        config["voice_hotkey"] = key_mapping.voice_hotkey_for_trigger_mode(mode)
+        return
+
     if current not in key_mapping.LEGACY_VOICE_HOTKEYS:
         inferred_mode = key_mapping.voice_trigger_mode_for_hotkey(current)
         if inferred_mode is not None:
             config["voice_trigger_mode"] = inferred_mode.value
         return
 
-    try:
-        mode = key_mapping.VoiceTriggerMode(config.get("voice_trigger_mode"))
-    except ValueError:
+    if mode is None:
         return
     config["voice_hotkey"] = key_mapping.voice_hotkey_for_trigger_mode(mode)
 
@@ -178,6 +199,14 @@ def default_key_bindings() -> Dict[str, Any]:
             button_id: action.to_dict()
             for button_id, action in key_mapping.default_button_actions().items()
         },
+        # Secondary gestures follow the reference project's separate map.
+        # Keeping the primary action flat preserves compatibility with all
+        # existing Windows config files.
+        "secondary_bindings": {},
+        # Physical signatures are learned from Raw Input captures. They are
+        # deliberately independent of semantic actions and contain no device
+        # path or Bluetooth identity.
+        "physical_bindings": {},
     }
 
 
@@ -187,9 +216,63 @@ def load_key_bindings(path: Path) -> Dict[str, Any]:
         with path.open("r", encoding="utf-8-sig") as handle:
             stored = json.load(handle)
         _assert_no_forbidden_keys(stored)
-        bindings.update(stored)
+        for key, value in stored.items():
+            if key in {"bindings", "secondary_bindings", "physical_bindings"}:
+                if isinstance(value, dict):
+                    current = bindings.get(key)
+                    if not isinstance(current, dict):
+                        current = {}
+                        bindings[key] = current
+                    current.update(value)
+                else:
+                    bindings[key] = value
+            else:
+                bindings[key] = value
+    if not isinstance(bindings.get("bindings"), dict):
+        bindings["bindings"] = {}
+    if not isinstance(bindings.get("secondary_bindings"), dict):
+        bindings["secondary_bindings"] = {}
+    _normalize_physical_bindings(bindings)
+    _normalize_semantic_actions(bindings)
     _normalize_mic_binding(bindings)
+    _normalize_secondary_bindings(bindings)
     return bindings
+
+
+def _normalize_semantic_actions(bindings: Dict[str, Any]) -> None:
+    """Migrate old reference-looking key chords to real action kinds.
+
+    Builds before the semantic action layer wrote values such as
+    ``{"kind":"key_combo","keys":["up"]}``.  Keeping those values in
+    memory would make the UI look correct while the runtime still takes the
+    generic shortcut path.  Convert only the exact built-in chords; arbitrary
+    user-recorded combinations remain custom ``key_combo`` actions.
+    """
+
+    from . import key_mapping
+
+    def normalize(raw: Any) -> Any:
+        if not isinstance(raw, dict):
+            return raw
+        try:
+            action = key_mapping.ButtonAction.from_dict(raw)
+        except (KeyError, TypeError, ValueError):
+            return raw
+        migrated = key_mapping.semantic_action_for_keys(action.keys)
+        return migrated.to_dict() if migrated is not None else raw
+
+    primary = bindings.get("bindings")
+    if isinstance(primary, dict):
+        for button_id, raw in list(primary.items()):
+            primary[button_id] = normalize(raw)
+
+    secondary = bindings.get("secondary_bindings")
+    if isinstance(secondary, dict):
+        for button_id, trigger_map in list(secondary.items()):
+            if not isinstance(trigger_map, dict):
+                continue
+            for trigger_name, raw in list(trigger_map.items()):
+                trigger_map[trigger_name] = normalize(raw)
 
 
 def _normalize_mic_binding(bindings: Dict[str, Any]) -> None:
@@ -211,6 +294,53 @@ def _normalize_mic_binding(bindings: Dict[str, Any]) -> None:
 
     button_bindings = bindings.setdefault("bindings", {})
     button_bindings["mic"] = key_mapping.ButtonAction(key_mapping.ActionKind.VOICE).to_dict()
+
+
+def _normalize_secondary_bindings(bindings: Dict[str, Any]) -> None:
+    """Keep optional double/long mappings structurally safe on load.
+
+    A malformed secondary entry is ignored by the runtime action lookup, but
+    the container itself must still be a mapping so a damaged config cannot
+    make the settings page or save path crash.  The microphone is excluded:
+    it is always owned by the ATVV voice lifecycle, never ordinary gestures.
+    """
+
+    secondary = bindings.get("secondary_bindings")
+    if not isinstance(secondary, dict):
+        bindings["secondary_bindings"] = {}
+        return
+    secondary.pop("mic", None)
+    for button_id in list(secondary):
+        entry = secondary[button_id]
+        if not isinstance(entry, dict):
+            secondary.pop(button_id, None)
+            continue
+        for trigger in list(entry):
+            if trigger not in {"double_click", "long_press"} or not isinstance(
+                entry[trigger], dict
+            ):
+                entry.pop(trigger, None)
+        if not entry:
+            secondary.pop(button_id, None)
+
+
+def _normalize_physical_bindings(bindings: Dict[str, Any]) -> None:
+    """Keep learned physical overrides portable and action-safe."""
+
+    from . import device_profile
+
+    physical = bindings.get("physical_bindings")
+    if not isinstance(physical, dict):
+        bindings["physical_bindings"] = {}
+        return
+    bindings["physical_bindings"] = {
+        str(signature): str(button_id)
+        for signature, button_id in physical.items()
+        if isinstance(signature, str)
+        and signature.strip()
+        and isinstance(button_id, str)
+        and button_id in device_profile.ALL_BUTTON_IDS
+    }
 
 
 def save_key_bindings(path: Path, bindings: Dict[str, Any]) -> None:

@@ -216,7 +216,7 @@ Item {
                             Layout.columnSpan: 2
                             Layout.fillWidth: true
                             wrapMode: Text.WordWrap
-                            text: qsTr("免按住自动使用右 Alt+空格；长按自动使用左 Ctrl+Win。切换触发方式会同步更新快捷键。")
+                            text: qsTr("免按住自动使用右 Alt+空格；长按自动使用右 Alt。切换触发方式会同步更新快捷键。")
                             color: tokens.textSecondary
                             font.pixelSize: tokens.fontSizeSmall
                         }

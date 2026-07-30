@@ -22,10 +22,10 @@ import OvbRc003Settings 1.0
 ApplicationWindow {
     id: window
     title: qsTr("Remote Mic 设置")
-    width: 820
-    height: 640
-    minimumWidth: 720
-    minimumHeight: 560
+    width: 900
+    height: 680
+    minimumWidth: 780
+    minimumHeight: 600
     visible: true
 
     property Tokens tokens: Tokens {}

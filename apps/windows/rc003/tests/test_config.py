@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from ovb_rc003 import config
+from ovb_rc003 import config, key_mapping
 
 
 class ConfigRootTests(unittest.TestCase):
@@ -26,6 +26,7 @@ class DefaultConfigPrivacyTests(unittest.TestCase):
     def test_default_config_preserves_existing_users_on_rc003(self):
         self.assertEqual(config.default_config()["selected_device_profile"], "xiaomi-rc003")
         self.assertEqual(config.default_config()["voice_hotkey"], "ralt+space")
+        self.assertEqual(config.default_config()["gain_db"], 10.0)
 
     def test_default_config_contains_no_forbidden_identity_fields(self):
         defaults = config.default_config()
@@ -55,7 +56,7 @@ class DefaultConfigPrivacyTests(unittest.TestCase):
             data.update({"voice_trigger_mode": "hold", "voice_hotkey": "ralt+space"})
             config.save_config(path, data)
             loaded = config.load_config(path)
-        self.assertEqual(loaded["voice_hotkey"], "lctrl+win")
+        self.assertEqual(loaded["voice_hotkey"], "ralt")
 
     def test_load_preserves_a_user_custom_voice_shortcut(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -78,7 +79,18 @@ class DefaultConfigPrivacyTests(unittest.TestCase):
             )
             loaded = config.load_config(path)
         self.assertEqual(loaded["voice_trigger_mode"], "hold")
-        self.assertEqual(loaded["voice_hotkey"], "lctrl+lwin")
+        self.assertEqual(loaded["voice_hotkey"], "ralt")
+
+    def test_load_repairs_recorded_left_alt_to_right_alt_in_hold_mode(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "config.json"
+            path.write_text(
+                json.dumps({"voice_trigger_mode": "hold", "voice_hotkey": "lalt"}),
+                encoding="utf-8",
+            )
+            loaded = config.load_config(path)
+        self.assertEqual(loaded["voice_trigger_mode"], "hold")
+        self.assertEqual(loaded["voice_hotkey"], "ralt")
 
 
 class SaveConfigPrivacyGuardTests(unittest.TestCase):
@@ -189,6 +201,51 @@ class RoundTripTests(unittest.TestCase):
             config.save_key_bindings(path, original)
             loaded = config.load_key_bindings(path)
             self.assertEqual(loaded["bindings"], original["bindings"])
+
+    def test_legacy_reference_chords_are_migrated_to_semantic_actions(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "key_bindings.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "bindings": {
+                            "up": {"kind": "key_combo", "keys": ["up"]},
+                            "home": {
+                                "kind": "key_combo",
+                                "keys": ["win", "d"],
+                            },
+                            "tv": {
+                                "kind": "key_combo",
+                                "keys": ["alt", "esc"],
+                            },
+                            "power": {
+                                "kind": "key_combo",
+                                "keys": ["ctrl", "shift", "p"],
+                            },
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            loaded = config.load_key_bindings(path)
+
+        self.assertEqual(
+            loaded["bindings"]["up"]["kind"],
+            key_mapping.ActionKind.ARROW_UP.value,
+        )
+        self.assertEqual(
+            loaded["bindings"]["home"]["kind"],
+            key_mapping.ActionKind.SHOW_DESKTOP.value,
+        )
+        self.assertEqual(
+            loaded["bindings"]["tv"]["kind"],
+            key_mapping.ActionKind.APP_SWITCHER.value,
+        )
+        self.assertEqual(
+            loaded["bindings"]["power"],
+            {"kind": "key_combo", "keys": ["ctrl", "shift", "p"]},
+        )
 
 
 class MicBindingTruthfulnessTests(unittest.TestCase):

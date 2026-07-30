@@ -19,6 +19,7 @@ from . import device_profile
 
 REPORT_LENGTH = 9
 _REPORT_PREFIX = bytes((0x01, 0x00, 0x00))
+_REPORT_ID = 0x01
 
 
 class HidIdentityError(Exception):
@@ -105,24 +106,54 @@ def normalize_device_path(device_interface_path: str) -> str:
     return device_interface_path.strip().lower()
 
 
-def decode_active_usages(report: bytes) -> FrozenSet[int]:
-    """Decode a 9-byte RC003 report into the set of currently-active usage IDs.
+def decode_report_usages(report: bytes) -> FrozenSet[int]:
+    """Decode an RC003 report into all currently-active usage IDs.
+
+    Windows Raw Input has been observed with both the three-byte report
+    prefix used by the original adapter (``01 00 00`` + six payload bytes)
+    and the compact HID form (report ID ``01`` + six payload bytes). Accept
+    the compact six-byte payload as well so capture/replay preserves the
+    report shape instead of forcing a guessed normalization at the caller.
+    Unknown usages are intentionally retained here; the physical learning
+    path needs to show them instead of silently treating the report as empty.
 
     Each report is an absolute snapshot of up to three concurrently-pressed
     buttons, not a discrete edge event; ``diff_usages`` below derives edges
     across two snapshots.
     """
 
-    if len(report) != REPORT_LENGTH or report[:3] != _REPORT_PREFIX:
-        raise ValueError(f"expected a {REPORT_LENGTH}-byte RC003 report, got {report!r}")
+    if len(report) == REPORT_LENGTH and report[:3] == _REPORT_PREFIX:
+        payload = report[3:]
+    elif len(report) == 7 and report[0] == _REPORT_ID:
+        payload = report[1:]
+    elif len(report) == 6:
+        payload = report
+    else:
+        raise ValueError(
+            "expected a 6-byte payload, 7-byte report-id form, or "
+            f"{REPORT_LENGTH}-byte RC003 report, got {report!r}"
+        )
 
     active = set()
-    payload = report[3:]
     for slot in range(3):
         usage = int.from_bytes(payload[slot * 2 : slot * 2 + 2], "little")
-        if usage != 0 and usage in device_profile.BUTTON_USAGE_IDS:
+        if usage != 0:
             active.add(usage)
     return frozenset(active)
+
+
+def decode_active_usages(report: bytes) -> FrozenSet[int]:
+    """Decode a report into the known RC003 usage IDs.
+
+    This compatibility wrapper keeps the action path fail-closed while
+    :func:`decode_report_usages` remains available to diagnostics and replay.
+    """
+
+    return frozenset(
+        usage
+        for usage in decode_report_usages(report)
+        if usage in device_profile.BUTTON_USAGE_IDS
+    )
 
 
 def diff_usages(

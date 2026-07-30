@@ -28,6 +28,7 @@ Qt is missing).
 
 from __future__ import annotations
 
+import copy
 from dataclasses import dataclass
 from typing import Dict, Optional, Tuple
 
@@ -42,17 +43,58 @@ from . import (
     win32_keys,
 )
 
-# Preset key-combo choices shown in the mapping dropdown, covering every
-# default action plus a few common alternates. Any other "mod+mod+key" text
-# is also accepted via hotkey.HotkeySpec.parse.
+# Reference action names map to semantic values.  The Windows implementation
+# is intentionally behind these values; the dropdown must never turn
+# ``方向上`` back into a generic ``key_combo`` just because the platform uses
+# a key event to deliver it.
+_REFERENCE_ACTION_LABELS: Dict[key_mapping.ActionKind, str] = {
+    key_mapping.ActionKind.ESCAPE: "Escape",
+    key_mapping.ActionKind.RETURN: "Return",
+    key_mapping.ActionKind.ARROW_UP: "方向上",
+    key_mapping.ActionKind.ARROW_DOWN: "方向下",
+    key_mapping.ActionKind.ARROW_LEFT: "方向左",
+    key_mapping.ActionKind.ARROW_RIGHT: "方向右",
+    key_mapping.ActionKind.DELETE_BACKWARD: "Delete（退格）",
+    key_mapping.ActionKind.SHOW_DESKTOP: "显示桌面",
+    key_mapping.ActionKind.CONTEXT_MENU: "上下文菜单",
+    key_mapping.ActionKind.APP_SWITCHER: "应用切换",
+    key_mapping.ActionKind.SYSTEM_VOLUME_UP: "系统音量 +",
+    key_mapping.ActionKind.SYSTEM_VOLUME_DOWN: "系统音量 −",
+    key_mapping.ActionKind.SYSTEM_VOLUME_MUTE: "系统静音",
+    key_mapping.ActionKind.PLAY_PAUSE: "播放 / 暂停",
+    key_mapping.ActionKind.OPEN_REMOTE_MIC: "打开无线麦",
+    key_mapping.ActionKind.OPEN_CODEX: "打开 Codex",
+    key_mapping.ActionKind.OPEN_CLAUDE: "打开 Claude",
+    key_mapping.ActionKind.OPEN_CMUX: "打开 cmux",
+    key_mapping.ActionKind.OPEN_WECHAT: "打开微信",
+    key_mapping.ActionKind.OPEN_CURSOR: "打开 Cursor",
+    key_mapping.ActionKind.OPEN_SLACK: "打开 Slack",
+    key_mapping.ActionKind.OPEN_WECOM: "打开企业微信",
+    key_mapping.ActionKind.OPEN_NETEASE_MUSIC: "打开网易云音乐",
+    key_mapping.ActionKind.OPEN_CHROME: "打开 Chrome",
+    key_mapping.ActionKind.OPEN_EDGE: "打开 Edge",
+    key_mapping.ActionKind.OPEN_ZED: "打开 Zed",
+}
+_REFERENCE_ACTION_KINDS_BY_LABEL: Dict[str, key_mapping.ActionKind] = {
+    label: action_kind for action_kind, label in _REFERENCE_ACTION_LABELS.items()
+}
+
+# Preset choices shown in the mapping dropdown. Any other
+# "mod+mod+key" text is still accepted as a custom shortcut through
+# hotkey.HotkeySpec.parse.
 _PRESET_KEY_COMBOS = (
-    "escape", "enter", "backspace", "up", "down", "left", "right",
-    "win+d", "shift+f10", "alt+esc", "lctrl+win", "ralt", "ralt+space", "tab", "space", "禁用",
+    "Escape", "Return", "Delete（退格）", "方向上", "方向下", "方向左", "方向右",
+    "显示桌面", "上下文菜单", "应用切换", "系统音量 +", "系统音量 −",
+    "系统静音", "播放 / 暂停",
+    "打开无线麦", "打开 Codex", "打开 Claude", "打开 cmux", "打开微信",
+    "打开 Cursor", "打开 Slack", "打开企业微信", "打开网易云音乐",
+    "打开 Chrome", "打开 Edge", "打开 Zed",
+    "lctrl+win", "ralt", "ralt+space", "tab", "space", "f5", "禁用",
 )
 
 _TRIGGER_MODE_LABELS = {
     key_mapping.VoiceTriggerMode.TOGGLE: "免按住（右 Alt + 空格）",
-    key_mapping.VoiceTriggerMode.HOLD: "长按（左 Ctrl + Win）",
+    key_mapping.VoiceTriggerMode.HOLD: "长按（右 Alt）",
 }
 
 def voice_hotkey_for_trigger_mode(trigger_mode: key_mapping.VoiceTriggerMode) -> str:
@@ -65,10 +107,15 @@ def voice_hotkey_for_trigger_mode(trigger_mode: key_mapping.VoiceTriggerMode) ->
 # back to ActionKind.VOICE - it must NOT be handed to HotkeySpec.parse.
 _VOICE_DISPLAY = "语音（使用专用组合键）"
 
+# Secondary gestures are optional.  Keep an explicit display value in the
+# editable ComboBox so Qt does not fall back to the first real preset (usually
+# ``escape``) when an older key_bindings.json has no secondary_bindings map.
+SECONDARY_UNCONFIGURED_DISPLAY = "未设置"
+
 # The microphone button remains a VOICE lifecycle action (it cannot be changed
 # into an unrelated normal-key mapping), but the host chord it emits is
 # editable through SettingsController.hotkeyText in the same row.
-_MIC_ROW_DISPLAY = "触发语音（免按住：右 Alt+空格；长按：左 Ctrl+Win）"
+_MIC_ROW_DISPLAY = "触发语音（免按住：右 Alt+空格；长按：右 Alt）"
 
 # device_profile.ALL_BUTTON_IDS also carries "volume_mute", a HID usage-table
 # entry kept for protocol compatibility (see key_mapping.py's module
@@ -99,23 +146,32 @@ def _action_to_display(action: key_mapping.ButtonAction) -> str:
         return "禁用"
     if action.kind == key_mapping.ActionKind.VOICE:
         return _VOICE_DISPLAY
-    if action.kind == key_mapping.ActionKind.SYSTEM_VOLUME_UP:
-        return "系统音量 +"
-    if action.kind == key_mapping.ActionKind.SYSTEM_VOLUME_DOWN:
-        return "系统音量 −"
+    reference_label = _REFERENCE_ACTION_LABELS.get(action.kind)
+    if reference_label is not None:
+        return reference_label
+    # Make old configs readable even before the loader has had a chance to
+    # migrate them (e.g. a caller is rendering a raw document in a test).
+    legacy_action = key_mapping.semantic_action_for_keys(action.keys)
+    if legacy_action is not None:
+        return _REFERENCE_ACTION_LABELS[legacy_action.kind]
     return "+".join(action.keys)
 
 
 def _display_to_action(text: str) -> key_mapping.ButtonAction:
     text = text.strip()
-    if text in ("禁用", "disabled"):
+    if text in ("禁用", "disabled", SECONDARY_UNCONFIGURED_DISPLAY):
         return key_mapping.ButtonAction(key_mapping.ActionKind.DISABLED)
     if text == _VOICE_DISPLAY:
         return key_mapping.ButtonAction(key_mapping.ActionKind.VOICE)
-    if text in ("系统音量 +",):
-        return key_mapping.ButtonAction(key_mapping.ActionKind.SYSTEM_VOLUME_UP)
-    if text in ("系统音量 −", "系统音量 -"):
-        return key_mapping.ButtonAction(key_mapping.ActionKind.SYSTEM_VOLUME_DOWN)
+    if text == "系统音量 -":
+        text = "系统音量 −"
+    reference_kind = _REFERENCE_ACTION_KINDS_BY_LABEL.get(text)
+    if reference_kind is not None:
+        return key_mapping.ButtonAction(reference_kind)
+    # Keep the previous spelling accepted for users who copied the macOS
+    # reference label into the Windows field.
+    if text == "Command-Tab":
+        return key_mapping.ButtonAction(key_mapping.ActionKind.APP_SWITCHER)
     parsed = hotkey.HotkeySpec.parse(text)
     try:
         win32_keys.resolve_vk_codes(tuple(parsed.modifiers) + (parsed.key,))
@@ -147,6 +203,7 @@ def _parse_endpoint_display(text: str) -> Tuple[str, str]:
 def build_save_model(
     *,
     button_display_map: Dict[str, str],
+    secondary_display_map: Optional[Dict[str, Dict[str, str]]] = None,
     hotkey_text: str,
     trigger_mode: key_mapping.VoiceTriggerMode,
     endpoint_display_text: str,
@@ -179,6 +236,40 @@ def build_save_model(
             raise SettingsValidationError(button_id, str(exc)) from exc
         bindings[button_id] = action.to_dict()
 
+    if secondary_display_map is None:
+        raw_secondary = base_bindings.get("secondary_bindings", {})
+        secondary_bindings = (
+            copy.deepcopy(raw_secondary) if isinstance(raw_secondary, dict) else {}
+        )
+    else:
+        secondary_bindings: Dict[str, Dict[str, dict]] = {}
+        valid_triggers = {
+            key_mapping.ButtonTrigger.DOUBLE_CLICK.value,
+            key_mapping.ButtonTrigger.LONG_PRESS.value,
+        }
+        for button_id, trigger_map in secondary_display_map.items():
+            if button_id == "mic" or not isinstance(trigger_map, dict):
+                continue
+            for trigger_name, text in trigger_map.items():
+                if trigger_name not in valid_triggers:
+                    raise SettingsValidationError(
+                        button_id, f"未知手势：{trigger_name}"
+                    )
+                text = str(text).strip()
+                if not text or text in (
+                    "禁用",
+                    "disabled",
+                    SECONDARY_UNCONFIGURED_DISPLAY,
+                ):
+                    continue
+                try:
+                    action = _display_to_action(text)
+                except hotkey.HotkeyParseError as exc:
+                    raise SettingsValidationError(button_id, str(exc)) from exc
+                if action.kind == key_mapping.ActionKind.DISABLED:
+                    continue
+                secondary_bindings.setdefault(button_id, {})[trigger_name] = action.to_dict()
+
     # The physical mic button is always driven directly by the ATVV voice
     # lifecycle (see app.py) - the runtime never consults a stored "mic"
     # binding at all. Force it to VOICE unconditionally regardless of what
@@ -204,6 +295,7 @@ def build_save_model(
 
     new_bindings = dict(base_bindings)
     new_bindings["bindings"] = bindings
+    new_bindings["secondary_bindings"] = secondary_bindings
 
     return new_config, new_bindings
 
@@ -215,6 +307,7 @@ class DefaultDisplayState:
     """
 
     button_display_map: Dict[str, str]
+    secondary_display_map: Dict[str, Dict[str, str]]
     hotkey_text: str
     trigger_mode_label: str
 
@@ -226,8 +319,17 @@ def default_display_state() -> DefaultDisplayState:
     }
     for button_id in _USER_FACING_BUTTON_IDS:
         button_display_map.setdefault(button_id, "")
+    secondary_display_map = {
+        button_id: {
+            key_mapping.ButtonTrigger.DOUBLE_CLICK.value: "",
+            key_mapping.ButtonTrigger.LONG_PRESS.value: "",
+        }
+        for button_id in _USER_FACING_BUTTON_IDS
+        if button_id != "mic"
+    }
     return DefaultDisplayState(
         button_display_map=button_display_map,
+        secondary_display_map=secondary_display_map,
         hotkey_text=hotkey.DEFAULT_VOICE_HOTKEY.serialize(),
         trigger_mode_label=_TRIGGER_MODE_LABELS[key_mapping.VoiceTriggerMode.TOGGLE],
     )

@@ -2,9 +2,10 @@
 #
 # One-dir build (COLLECT), matching the layout pattern this project's
 # upstream reference uses for its own standalone products, minus everything
-# out of scope for this candidate: no VB-CABLE files, no Frida binary (never
-# bundled - see ovb_rc003.frida_compat), no other-device (T1/V60) code, and
-# no licensing/DRM modules (none exist in this tree to begin with).
+# out of scope for this candidate: no other-device (T1/V60) code, and no
+# licensing/DRM modules (none exist in this tree to begin with). The optional,
+# hash-verified Frida archive is bundled only when the explicit fetch step
+# placed it in the source tree; it is never downloaded by this spec.
 #
 # Build with (inside a Windows virtual environment with requirements-dev.txt
 # installed):
@@ -32,6 +33,7 @@ DEVICE_PROFILES_DIR = REPO_ROOT / "device-profiles"
 # extraction) so the frozen build's optional driver-helper page works fully
 # offline on the end-user machine.
 VB_CABLE_BUNDLE_ZIP = RC003_ROOT / "build" / "third_party" / "VBCABLE_Driver_Pack45.zip"
+FRIDA_ASSET_DIR = SRC_ROOT / "ovb_rc003" / "frida_assets"
 
 datas = []
 if REMOTE_PHOTO.is_file():
@@ -71,6 +73,10 @@ if VB_CABLE_BUNDLE_ZIP.is_file():
     # this spec ever runs for a real candidate build; this spec itself stays
     # defensive/optional, matching the existing photo/qml pattern above.
     datas.append((str(VB_CABLE_BUNDLE_ZIP), "vb_cable_bundle"))
+for frida_asset in FRIDA_ASSET_DIR.glob("*.xz"):
+    # Runtime verifies the archive again before extracting it into the locked
+    # ProgramData directory. This remains optional for source-only builds.
+    datas.append((str(frida_asset), "ovb_rc003/frida_assets"))
 
 hiddenimports = [
     "ovb_rc003.app",
@@ -84,9 +90,14 @@ hiddenimports = [
     "ovb_rc003.audio_playback",
     "ovb_rc003.win32_input",
     "ovb_rc003.connection_supervisor",
+    "ovb_rc003.doubao_rpc",
+    "ovb_rc003.frida_compat",
+    "ovb_rc003.frida_hid_tap_runtime",
+    "ovb_rc003.frida_hid_tap_injector",
     "ovb_rc003.single_instance",  # XRBM-021: imported lazily inside
     # __main__.py's _run_bridge(), same as the other lazily-imported
     # modules above.
+    "frida",
     # Optional runtime dependencies, imported lazily inside functions in
     # audio_output.py/audio_playback.py/ble_transport_winrt.py, which
     # PyInstaller's static analysis cannot always auto-detect:

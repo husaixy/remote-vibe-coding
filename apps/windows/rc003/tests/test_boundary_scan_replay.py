@@ -11,6 +11,7 @@ agree that the real tree passes with zero violations.
 """
 
 import re
+import hashlib
 import tempfile
 import unittest
 from pathlib import Path
@@ -25,7 +26,24 @@ _RC003_ROOT = Path(__file__).resolve().parents[1]
 # treated as "committed" content.
 _EXCLUDED_DIR_NAMES = {".venv", "dist", "pyinstaller-work", "third_party"}
 
+
+def _is_excluded_generated_path(path: Path) -> bool:
+    """Match both canonical and timestamped build output directories."""
+    return any(
+        part in _EXCLUDED_DIR_NAMES
+        or part.startswith("dist-")
+        or part.startswith("build-")
+        or part.startswith("pyinstaller-work-")
+        for part in path.parts
+    )
+
 _FORBIDDEN_BINARY_EXTENSIONS = {".exe", ".dll", ".pyd", ".zip", ".xz"}
+_OPTIONAL_FRIDA_GADGET_RELATIVE_PATH = Path(
+    "src/ovb_rc003/frida_assets/frida-gadget-17.15.3-windows-x86_64.dll.xz"
+)
+_OPTIONAL_FRIDA_GADGET_SHA256 = (
+    "b566d70189b6d551ad8f4e0bea24de08a3d4c0f559bb35b2bdb67d45182240c2"
+)
 _TEXT_EXTENSIONS = {
     ".py", ".ps1", ".md", ".txt", ".json", ".yml", ".yaml", ".iss", ".spec", ".toml"
 }
@@ -84,17 +102,33 @@ def _remove_comment_lines(text: str, extension: str) -> str:
     )
 
 
+def _is_verified_optional_frida_gadget(path: Path, root: Path) -> bool:
+    """Allow only the explicitly pinned, ignored runtime asset."""
+    if path.relative_to(root).as_posix() != _OPTIONAL_FRIDA_GADGET_RELATIVE_PATH.as_posix():
+        return False
+    digest = hashlib.sha256()
+    try:
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+    except OSError:
+        return False
+    return digest.hexdigest() == _OPTIONAL_FRIDA_GADGET_SHA256
+
+
 def _scan(root: Path):
     violations = []
     all_files = [path for path in root.rglob("*") if path.is_file()]
     all_files = [
-        path for path in all_files if not (_EXCLUDED_DIR_NAMES & set(path.parts))
+        path for path in all_files if not _is_excluded_generated_path(path)
     ]
 
     for path in all_files:
         ext = path.suffix.lower()
 
-        if ext in _FORBIDDEN_BINARY_EXTENSIONS:
+        if ext in _FORBIDDEN_BINARY_EXTENSIONS and not _is_verified_optional_frida_gadget(
+            path, root
+        ):
             violations.append(f"forbidden binary committed: {path}")
             continue
 

@@ -5,20 +5,20 @@
     its SHA-256 before use. This is the ONLY place this project ever
     downloads a third-party binary, and it never runs automatically as part
     of a normal build - the build (see build-candidate.ps1) proceeds without
-    it and the RC003 "back" key simply stays unmapped (see
-    ovb_rc003.frida_compat.BackKeyCompatLayer).
+    it and the optional RC003 HID report tap stays disabled (see
+    ovb_rc003.frida_compat.RC003HidReportTap).
 
     No binary is bundled in source control. VB-CABLE is intentionally not
     fetched by this project at all (see XRBM-014's hard
     boundary against auto-installing/downloading it).
 
 .PARAMETER Destination
-    Where to place the verified asset. Defaults to a local "third_party"
-    staging directory next to this script (not committed - see .gitignore).
+    Where to place the verified asset. Defaults to the optional runtime asset
+    directory under src/ovb_rc003 (not committed - see .gitignore).
 #>
 
 param(
-    [string]$Destination = (Join-Path $PSScriptRoot "third_party\frida-gadget-17.15.3-windows-x86_64.dll.xz")
+    [string]$Destination = (Join-Path $PSScriptRoot "..\src\ovb_rc003\frida_assets\frida-gadget-17.15.3-windows-x86_64.dll.xz")
 )
 
 $ErrorActionPreference = "Stop"
@@ -91,6 +91,6 @@ Get-VerifiedAsset -Name $AssetName -Url $AssetUrl -Destination $Destination -Exp
 
 Write-Host ""
 Write-Host "Frida Gadget license: see https://raw.githubusercontent.com/frida/frida-core/main/COPYING"
-Write-Host "This asset is optional. The back-key compatibility layer described in"
-Write-Host "ovb_rc003.frida_compat is not yet wired to use it in this candidate; the"
-Write-Host "back key remains unmapped regardless of whether this script is run."
+Write-Host "This asset is optional. When present, RC003HidReportTap can request one"
+Write-Host "UAC-elevated injection into the paired RC003 WUDF host to recover the"
+Write-Host "back and volume HID usages that Windows Raw Input drops."

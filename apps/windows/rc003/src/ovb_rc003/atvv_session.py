@@ -62,6 +62,85 @@ class UnknownControl:
     opcode: int
 
 
+@dataclass
+class PcmStats:
+    """Privacy-safe per-session PCM evidence for diagnosing voice input."""
+
+    frames: int = 0
+    samples: int = 0
+    peak: int = 0
+    sum_squares: int = 0
+    sum_abs: int = 0
+    sum_values: int = 0
+    clipped_samples: int = 0
+    zero_crossings: int = 0
+    minimum: int = 0
+    maximum: int = 0
+    _previous_sample: Optional[int] = None
+
+    def reset(self) -> None:
+        self.frames = 0
+        self.samples = 0
+        self.peak = 0
+        self.sum_squares = 0
+        self.sum_abs = 0
+        self.sum_values = 0
+        self.clipped_samples = 0
+        self.zero_crossings = 0
+        self.minimum = 0
+        self.maximum = 0
+        self._previous_sample = None
+
+    def add(self, samples: List[int]) -> None:
+        if not samples:
+            return
+        self.frames += 1
+        self.samples += len(samples)
+        self.peak = max(self.peak, max(abs(sample) for sample in samples))
+        self.sum_squares += sum(sample * sample for sample in samples)
+        self.sum_abs += sum(abs(sample) for sample in samples)
+        self.sum_values += sum(samples)
+        self.clipped_samples += sum(abs(sample) >= 32760 for sample in samples)
+        self.minimum = min(self.minimum, min(samples)) if self.samples > len(samples) else min(samples)
+        self.maximum = max(self.maximum, max(samples)) if self.samples > len(samples) else max(samples)
+        previous = self._previous_sample
+        for sample in samples:
+            if previous is not None and ((previous < 0 <= sample) or (previous > 0 >= sample)):
+                self.zero_crossings += 1
+            previous = sample
+        self._previous_sample = previous
+
+    def summary(self, sample_rate: int = proto.SUPPORTED_SAMPLE_RATE_HZ) -> dict:
+        audio_ms = self.samples * 1000.0 / sample_rate if sample_rate else 0.0
+        rms = (self.sum_squares / self.samples) ** 0.5 if self.samples else 0.0
+        mean_abs = self.sum_abs / self.samples if self.samples else 0.0
+        mean = self.sum_values / self.samples if self.samples else 0.0
+        clipped_pct = self.clipped_samples * 100.0 / self.samples if self.samples else 0.0
+        if not self.frames:
+            result = "empty"
+        elif audio_ms < 500.0:
+            result = "too_short"
+        elif self.peak < 33:
+            result = "silent"
+        else:
+            result = "signal"
+        return {
+            "frames": self.frames,
+            "samples": self.samples,
+            "audio_ms": audio_ms,
+            "peak": self.peak,
+            "rms": rms,
+            "mean_abs": mean_abs,
+            "mean": mean,
+            "clipped_samples": self.clipped_samples,
+            "clipped_pct": clipped_pct,
+            "zero_crossings": self.zero_crossings,
+            "minimum": self.minimum,
+            "maximum": self.maximum,
+            "result": result,
+        }
+
+
 ControlEvent = object  # union of the dataclasses above, kept loose for simplicity
 
 ClockFn = Callable[[], float]
@@ -74,10 +153,11 @@ class ATVVSession:
     leaks across a reconnect (there is no shared/global session state).
     """
 
-    def __init__(self, gain_db: float = 0.0, clock: ClockFn = time.monotonic) -> None:
+    def __init__(self, gain_db: float = 10.0, clock: ClockFn = time.monotonic) -> None:
         self.gain_db = gain_db
         self._clock = clock
         self._decoder = proto.IMAADPCMDecoder()
+        self._dc_filter = proto.DCHighPassFilter()
         self._accumulator = proto.FrameAccumulator()
         self._frame_size = proto.DEFAULT_FRAME_SIZE
         self._version = 0
@@ -120,6 +200,7 @@ class ATVVSession:
 
         if opcode == proto.OPCODE_AUDIO_START:
             self._decoder.reset()
+            self._dc_filter.reset()
             self._accumulator.reset()
             self._pending_sync = None
             self._mic_open = True
@@ -154,9 +235,11 @@ class ATVVSession:
         for frame in frames:
             if self._pending_sync is not None:
                 self._decoder.reset(*self._pending_sync)
+                self._dc_filter.reset()
                 self._pending_sync = None
             decoded = self._decoder.decode(frame)
-            samples.extend(proto.postprocess(decoded, self.gain_db))
+            centered = self._dc_filter.process(decoded)
+            samples.extend(proto.postprocess(centered, self.gain_db))
         return samples
 
     def mic_open_command(self) -> bytes:

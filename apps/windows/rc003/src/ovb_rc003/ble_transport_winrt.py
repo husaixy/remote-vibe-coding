@@ -205,7 +205,7 @@ class RC003BleSession:
         on_control_event: Optional[ControlEventCallback] = None,
         on_error: Optional[ErrorCallback] = None,
         on_disconnected: Optional[DisconnectedCallback] = None,
-        gain_db: float = 0.0,
+        gain_db: float = 10.0,
         winrt: Optional[WinRTModules] = None,
         loop: Optional[asyncio.AbstractEventLoop] = None,
     ) -> None:

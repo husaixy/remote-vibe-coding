@@ -14,7 +14,7 @@ class HotkeySpecTests(unittest.TestCase):
         )
         self.assertEqual(
             key_mapping.voice_hotkey_for_trigger_mode(key_mapping.VoiceTriggerMode.HOLD),
-            "lctrl+win",
+            "ralt",
         )
 
     def test_right_alt_can_be_used_as_a_hold_trigger(self):

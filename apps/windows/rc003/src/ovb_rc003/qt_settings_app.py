@@ -119,16 +119,15 @@ from . import (
     windows_diagnostics,
 )
 
-# These are the choices offered in each editable ordinary-button mapping
-# row's combo box - settings_ui._PRESET_KEY_COMBOS plus the two system-
-# volume actions _action_to_display()/_display_to_action() also recognize.
-# The combo box stays editable (not "readonly"): any other ordinary chord or
-# modifier-only chord is still accepted via hotkey.HotkeySpec.parse, same as
-# the previous Tk Combobox.
-_PRESET_ACTION_OPTIONS: List[str] = list(settings_ui._PRESET_KEY_COMBOS) + [
-    "系统音量 +",
-    "系统音量 −",
-]
+# These are the reference-style semantic action choices offered in each
+# editable ordinary-button mapping row.  The combo box stays editable (not
+# "readonly"): any other ordinary chord or modifier-only chord is still
+# accepted as a user custom shortcut through hotkey.HotkeySpec.parse.
+_PRESET_ACTION_OPTIONS: List[str] = list(dict.fromkeys(settings_ui._PRESET_KEY_COMBOS))
+# Keep the explicit optional-gesture state selectable and stable in an
+# editable ComboBox.  Without a value that is present in the model, Qt can
+# display the first real preset while the underlying model is actually blank.
+_PRESET_ACTION_OPTIONS.insert(0, settings_ui.SECONDARY_UNCONFIGURED_DISPLAY)
 
 
 class QtUnavailableError(RuntimeError):
@@ -425,13 +424,15 @@ def _load_qt_classes() -> dict:
         DisplayNameRole = _UserRole + 2
         HidUsageRole = _UserRole + 3
         ActionTextRole = _UserRole + 4
-        IsMicRole = _UserRole + 5
-        IsSelectedRole = _UserRole + 6
-        XRole = _UserRole + 7
-        YRole = _UserRole + 8
-        WidthRole = _UserRole + 9
-        HeightRole = _UserRole + 10
-        IsVoiceRole = _UserRole + 11
+        DoubleClickTextRole = _UserRole + 5
+        LongPressTextRole = _UserRole + 6
+        IsMicRole = _UserRole + 7
+        IsSelectedRole = _UserRole + 8
+        XRole = _UserRole + 9
+        YRole = _UserRole + 10
+        WidthRole = _UserRole + 11
+        HeightRole = _UserRole + 12
+        IsVoiceRole = _UserRole + 13
 
         # Emitted whenever a QML combo box edits a row's action text
         # (button_id, new display text) - SettingsController does not need
@@ -443,6 +444,17 @@ def _load_qt_classes() -> dict:
             super().__init__(parent)
             self._button_ids: List[str] = list(remote_layout.BUTTON_ORDER)
             self._action_text: Dict[str, str] = {bid: "" for bid in self._button_ids}
+            self._secondary_action_text: Dict[str, Dict[str, str]] = {
+                bid: {
+                    key_mapping.ButtonTrigger.DOUBLE_CLICK.value: (
+                        settings_ui.SECONDARY_UNCONFIGURED_DISPLAY
+                    ),
+                    key_mapping.ButtonTrigger.LONG_PRESS.value: (
+                        settings_ui.SECONDARY_UNCONFIGURED_DISPLAY
+                    ),
+                }
+                for bid in self._button_ids
+            }
             self._selected_button_id: str = "ok"
 
         def rowCount(self, parent=QModelIndex()) -> int:  # noqa: B008 - QML model convention
@@ -456,6 +468,8 @@ def _load_qt_classes() -> dict:
                 self.DisplayNameRole: QByteArray(b"displayName"),
                 self.HidUsageRole: QByteArray(b"hidUsage"),
                 self.ActionTextRole: QByteArray(b"actionText"),
+                self.DoubleClickTextRole: QByteArray(b"doubleClickText"),
+                self.LongPressTextRole: QByteArray(b"longPressText"),
                 self.IsMicRole: QByteArray(b"isMic"),
                 self.IsSelectedRole: QByteArray(b"isSelected"),
                 self.XRole: QByteArray(b"hotspotX"),
@@ -480,6 +494,14 @@ def _load_qt_classes() -> dict:
                 if button_id == "mic":
                     return settings_ui._MIC_ROW_DISPLAY
                 return self._action_text[button_id]
+            if role == self.DoubleClickTextRole:
+                return self._secondary_action_text[button_id][
+                    key_mapping.ButtonTrigger.DOUBLE_CLICK.value
+                ]
+            if role == self.LongPressTextRole:
+                return self._secondary_action_text[button_id][
+                    key_mapping.ButtonTrigger.LONG_PRESS.value
+                ]
             if role == self.IsMicRole:
                 return button_id == "mic"
             if role == self.IsSelectedRole:
@@ -496,7 +518,11 @@ def _load_qt_classes() -> dict:
                 return bool(hotspot and hotspot.is_voice)
             return None
 
-        def load_display_map(self, display_map: Dict[str, str]) -> None:
+        def load_display_map(
+            self,
+            display_map: Dict[str, str],
+            secondary_display_map: Optional[Dict[str, Dict[str, str]]] = None,
+        ) -> None:
             """Resets every non-mic row's action text from a
             button_id -> display-text mapping (settings_ui.DefaultDisplayState
             or a loaded config's bindings) - the mic row is never taken from
@@ -508,6 +534,17 @@ def _load_qt_classes() -> dict:
             self.beginResetModel()
             for button_id in self._button_ids:
                 self._action_text[button_id] = display_map.get(button_id, "")
+                trigger_map = (secondary_display_map or {}).get(button_id, {})
+                self._secondary_action_text[button_id] = {
+                    key_mapping.ButtonTrigger.DOUBLE_CLICK.value: trigger_map.get(
+                        key_mapping.ButtonTrigger.DOUBLE_CLICK.value,
+                        settings_ui.SECONDARY_UNCONFIGURED_DISPLAY,
+                    ),
+                    key_mapping.ButtonTrigger.LONG_PRESS.value: trigger_map.get(
+                        key_mapping.ButtonTrigger.LONG_PRESS.value,
+                        settings_ui.SECONDARY_UNCONFIGURED_DISPLAY,
+                    ),
+                }
             self.endResetModel()
 
         def to_display_map(self) -> Dict[str, str]:
@@ -521,6 +558,20 @@ def _load_qt_classes() -> dict:
             return {
                 button_id: text
                 for button_id, text in self._action_text.items()
+                if button_id != "mic"
+            }
+
+        def to_secondary_display_map(self) -> Dict[str, Dict[str, str]]:
+            return {
+                button_id: {
+                    trigger: (
+                        ""
+                        if text == settings_ui.SECONDARY_UNCONFIGURED_DISPLAY
+                        else text
+                    )
+                    for trigger, text in trigger_map.items()
+                }
+                for button_id, trigger_map in self._secondary_action_text.items()
                 if button_id != "mic"
             }
 
@@ -545,6 +596,27 @@ def _load_qt_classes() -> dict:
             model_index = self.index(row, 0)
             self.dataChanged.emit(model_index, model_index, [self.ActionTextRole])
             self.actionEdited.emit(button_id, text)
+
+        @Slot(int, str, str)
+        def setSecondaryActionTextAt(self, row: int, trigger: str, text: str) -> None:
+            if not (0 <= row < len(self._button_ids)):
+                return
+            if trigger not in {
+                key_mapping.ButtonTrigger.DOUBLE_CLICK.value,
+                key_mapping.ButtonTrigger.LONG_PRESS.value,
+            }:
+                return
+            button_id = self._button_ids[row]
+            if button_id == "mic":
+                return
+            self._secondary_action_text[button_id][trigger] = text
+            model_index = self.index(row, 0)
+            role = (
+                self.DoubleClickTextRole
+                if trigger == key_mapping.ButtonTrigger.DOUBLE_CLICK.value
+                else self.LongPressTextRole
+            )
+            self.dataChanged.emit(model_index, model_index, [role])
 
         def set_selected_button(self, button_id: str) -> None:
             if button_id == self._selected_button_id or button_id not in self._action_text:
@@ -669,14 +741,38 @@ def _load_qt_classes() -> dict:
         def _load_bindings_into_model(self) -> None:
             bindings = self._bindings.get("bindings", {})
             display_map: Dict[str, str] = {}
+            secondary_display_map: Dict[str, Dict[str, str]] = {}
             for button_id in remote_layout.BUTTON_ORDER:
                 action_dict = bindings.get(button_id)
                 if action_dict is not None:
-                    action = key_mapping.ButtonAction.from_dict(action_dict)
-                    display_map[button_id] = settings_ui._action_to_display(action)
+                    try:
+                        action = key_mapping.ButtonAction.from_dict(action_dict)
+                        display_map[button_id] = settings_ui._action_to_display(action)
+                    except (KeyError, TypeError, ValueError):
+                        display_map[button_id] = ""
                 else:
                     display_map[button_id] = ""
-            self._model.load_display_map(display_map)
+                if button_id != "mic":
+                    secondary_display_map[button_id] = {}
+                    raw_secondary = self._bindings.get("secondary_bindings", {}).get(
+                        button_id, {}
+                    )
+                    if isinstance(raw_secondary, dict):
+                        for trigger_name in (
+                            key_mapping.ButtonTrigger.DOUBLE_CLICK.value,
+                            key_mapping.ButtonTrigger.LONG_PRESS.value,
+                        ):
+                            action_dict = raw_secondary.get(trigger_name)
+                            if not isinstance(action_dict, dict):
+                                continue
+                            try:
+                                action = key_mapping.ButtonAction.from_dict(action_dict)
+                            except (KeyError, TypeError, ValueError):
+                                continue
+                            secondary_display_map[button_id][trigger_name] = (
+                                settings_ui._action_to_display(action)
+                            )
+            self._model.load_display_map(display_map, secondary_display_map)
 
         def _selected_device_id(self) -> str:
             if 0 <= self._selected_device_index < len(self._DEVICE_ORDER):
@@ -711,13 +807,24 @@ def _load_qt_classes() -> dict:
         def _on_raw_input_event(self, event: raw_input_windows.RawInputEvent) -> None:
             if not event.is_pressed:
                 return
+            signature = raw_input_windows.physical_signature(event)
             if event.source == "keyboard":
+                vkey = "--" if event.vkey is None else f"0x{event.vkey:02X}"
+                make_code = "--" if event.make_code is None else f"0x{event.make_code:02X}"
+                flags = "--" if event.flags is None else f"0x{event.flags:04X}"
                 details = (
-                    f"Raw Input 键盘事件：VKey=0x{event.vkey:02X}, "
-                    f"MakeCode=0x{event.make_code:02X}, Flags=0x{event.flags:04X}"
+                    f"Raw Input 键盘事件：VKey={vkey}, "
+                    f"MakeCode={make_code}, Flags={flags}"
                 )
             else:
                 details = f"Raw Input HID 报告：{event.report.hex(' ')}"
+            if event.usages:
+                details += " Usages=" + ",".join(
+                    f"0x{usage:04X}" for usage in event.usages
+                )
+            if event.decode_error:
+                details += f" 解码错误={event.decode_error}"
+            details += f" Signature={signature}"
             self._rawKeyDetected.emit(event.button_id or "", details)
 
         def _on_raw_key_detected(self, button_id: str, details: str) -> None:
@@ -736,7 +843,10 @@ def _load_qt_classes() -> dict:
                 usage = remote_layout.hid_usage_display(button_id)
                 result = f"已捕获真实按键：{display_name}（{usage}）。"
             else:
-                result = "已捕获未预置映射的真实按键。"
+                result = (
+                    "已捕获未预置映射的真实按键；请保留 Signature，"
+                    "再用 rc003_key_test capture --assign 适配它。"
+                )
             self._set_key_detection_text(
                 f"{result}{details} 现在可设置该行的 Windows 映射并保存。"
             )
@@ -775,6 +885,7 @@ def _load_qt_classes() -> dict:
             try:
                 new_config, new_bindings = settings_ui.build_save_model(
                     button_display_map=self._model.to_display_map(),
+                    secondary_display_map=self._model.to_secondary_display_map(),
                     hotkey_text=self._hotkey_text,
                     trigger_mode=trigger_mode,
                     endpoint_display_text=endpoint_display,
@@ -1022,6 +1133,11 @@ def _load_qt_classes() -> dict:
                     lambda *_: None,
                     self._on_raw_input_event,
                 )
+                set_physical_bindings = getattr(
+                    listener, "set_physical_bindings", None
+                )
+                if callable(set_physical_bindings):
+                    set_physical_bindings(self._bindings.get("physical_bindings", {}))
                 listener.start(device_path)
             except Exception as exc:  # noqa: BLE001 - surface failure in the UI
                 self._key_detection_listener = None
@@ -1111,7 +1227,10 @@ def _load_qt_classes() -> dict:
             """
 
             defaults = settings_ui.default_display_state()
-            self._model.load_display_map(defaults.button_display_map)
+            self._model.load_display_map(
+                defaults.button_display_map,
+                defaults.secondary_display_map,
+            )
             self._set_hotkey_text(defaults.hotkey_text)
             trigger_mode = next(
                 mode

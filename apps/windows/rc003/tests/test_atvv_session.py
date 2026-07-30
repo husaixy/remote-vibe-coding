@@ -42,6 +42,48 @@ class ATVVSessionCapsTests(unittest.TestCase):
             session.handle_control(b"")
 
 
+class PcmStatsTests(unittest.TestCase):
+    def test_empty_summary_is_explicit(self):
+        stats = atvv_session.PcmStats()
+        self.assertEqual(stats.summary(), {
+            "frames": 0,
+            "samples": 0,
+            "audio_ms": 0.0,
+            "peak": 0,
+            "rms": 0.0,
+            "mean_abs": 0.0,
+            "mean": 0.0,
+            "clipped_samples": 0,
+            "clipped_pct": 0.0,
+            "zero_crossings": 0,
+            "minimum": 0,
+            "maximum": 0,
+            "result": "empty",
+        })
+
+    def test_signal_summary_tracks_level_without_retaining_samples(self):
+        stats = atvv_session.PcmStats()
+        stats.add([0, 1000, -1000] * 3000)
+        summary = stats.summary()
+        self.assertEqual(summary["frames"], 1)
+        self.assertEqual(summary["samples"], 9000)
+        self.assertEqual(summary["peak"], 1000)
+        self.assertEqual(summary["mean_abs"], 2000 / 3)
+        self.assertEqual(summary["mean"], 0.0)
+        self.assertEqual(summary["clipped_samples"], 0)
+        self.assertEqual(summary["zero_crossings"], 5999)
+        self.assertEqual(summary["result"], "signal")
+
+    def test_summary_reports_clipping_and_dc_bias(self):
+        stats = atvv_session.PcmStats()
+        stats.add([32767, 32767, 100, -100])
+        summary = stats.summary()
+        self.assertEqual(summary["clipped_samples"], 2)
+        self.assertEqual(summary["minimum"], -100)
+        self.assertEqual(summary["maximum"], 32767)
+        self.assertAlmostEqual(summary["mean"], 16383.5)
+
+
 class ATVVSessionControlEventTests(unittest.TestCase):
     def test_mic_button_event(self):
         session = atvv_session.ATVVSession()
@@ -136,6 +178,25 @@ class ATVVSessionAudioTests(unittest.TestCase):
         self.assertEqual(session.mic_open_command(), bytes((0x0C, 0x00)))
         session.handle_control(bytes((proto.OPCODE_AUDIO_START, 0, 0, 9)))
         self.assertEqual(session.mic_close_command(), bytes((0x0D, 9)))
+
+
+class DCHighPassFilterTests(unittest.TestCase):
+    def test_constant_predictor_bias_is_removed(self):
+        filter_ = proto.DCHighPassFilter()
+        output = filter_.process([12000] * 2000)
+        self.assertEqual(output, [0] * 2000)
+
+    def test_filter_preserves_an_alternating_signal(self):
+        filter_ = proto.DCHighPassFilter()
+        output = filter_.process([1000, -1000] * 1000)
+        self.assertGreater(max(output), 900)
+        self.assertLess(min(output), -900)
+
+    def test_reset_discards_previous_session_state(self):
+        filter_ = proto.DCHighPassFilter()
+        filter_.process([12000, 12000, 12000])
+        filter_.reset()
+        self.assertEqual(filter_.process([12000, 12000]), [0, 0])
 
 
 if __name__ == "__main__":

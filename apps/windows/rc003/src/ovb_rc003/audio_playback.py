@@ -13,7 +13,7 @@ from typing import List, Optional
 from . import audio_output
 
 SOURCE_SAMPLE_RATE_HZ = 16000
-CHANNELS = 1
+DEFAULT_CHANNELS = 1
 
 
 class PlaybackUnavailableError(Exception):
@@ -35,6 +35,9 @@ class EndpointPlaybackSink:
         self._host_api = host_api
         self._stream = None
         self._output_sample_rate_hz = SOURCE_SAMPLE_RATE_HZ
+        self._output_channels = DEFAULT_CHANNELS
+        self._previous_sample = 0
+        self._have_previous_sample = False
 
     def open(self) -> None:
         try:
@@ -45,16 +48,32 @@ class EndpointPlaybackSink:
             ) from exc
 
         device_index = self._resolve_device_index(sd)
+        self._output_channels = self._select_output_channels(sd, device_index)
         self._output_sample_rate_hz = self._select_output_sample_rate(sd, device_index)
 
         self._stream = sd.OutputStream(
             device=device_index,
-            channels=CHANNELS,
+            channels=self._output_channels,
             dtype="int16",
             samplerate=self._output_sample_rate_hz,
             latency="low",
         )
         self._stream.start()
+        self._previous_sample = 0
+        self._have_previous_sample = False
+
+    @property
+    def output_sample_rate_hz(self) -> int:
+        return self._output_sample_rate_hz
+
+    @property
+    def output_channels(self) -> int:
+        return self._output_channels
+
+    def _select_output_channels(self, sd, device_index: int) -> int:
+        """Use stereo when the endpoint supports it so virtual cables receive both channels."""
+        device = sd.query_devices()[device_index]
+        return 2 if int(device.get("max_output_channels") or 0) >= 2 else DEFAULT_CHANNELS
 
     def _select_output_sample_rate(self, sd, device_index: int) -> int:
         device = sd.query_devices()[device_index]
@@ -73,7 +92,7 @@ class EndpointPlaybackSink:
             try:
                 sd.check_output_settings(
                     device=device_index,
-                    channels=CHANNELS,
+                    channels=self._output_channels,
                     dtype="int16",
                     samplerate=sample_rate,
                 )
@@ -126,13 +145,34 @@ class EndpointPlaybackSink:
         import numpy as np  # type: ignore
 
         array = np.asarray(samples, dtype="int16").reshape(-1, 1)
-        if self._output_sample_rate_hz != SOURCE_SAMPLE_RATE_HZ and len(array) > 1:
+        if self._output_sample_rate_hz == 48000 and len(array) > 0:
+            # Match the upstream RC003 path: continuous 16 kHz -> 48 kHz
+            # interpolation keeps the boundary between BLE notifications smooth.
+            values = array[:, 0].astype("int32").tolist()
+            previous = self._previous_sample if self._have_previous_sample else values[0]
+            output = []
+            for current in values:
+                delta = current - previous
+                output.extend(
+                    (
+                        previous + round(delta / 3.0),
+                        previous + round(delta * (2.0 / 3.0)),
+                        current,
+                    )
+                )
+                previous = current
+            self._previous_sample = values[-1]
+            self._have_previous_sample = True
+            array = np.asarray(output, dtype="int16").reshape(-1, 1)
+        elif self._output_sample_rate_hz != SOURCE_SAMPLE_RATE_HZ and len(array) > 1:
             ratio = self._output_sample_rate_hz / SOURCE_SAMPLE_RATE_HZ
             output_length = max(1, int(round(len(array) * ratio)))
             source_positions = np.arange(len(array), dtype=np.float64)
             target_positions = np.linspace(0, len(array) - 1, output_length)
             resampled = np.interp(target_positions, source_positions, array[:, 0])
             array = np.rint(resampled).clip(-32768, 32767).astype("int16").reshape(-1, 1)
+        if self._output_channels > 1:
+            array = np.repeat(array, self._output_channels, axis=1)
         self._stream.write(array)
 
     def close(self) -> None:

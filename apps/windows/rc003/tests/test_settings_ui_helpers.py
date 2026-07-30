@@ -32,11 +32,51 @@ class DisplayRoundTripTests(unittest.TestCase):
         self.assertEqual(_display_to_action("禁用").kind, key_mapping.ActionKind.DISABLED)
 
     def test_key_combo_round_trips(self):
-        action = key_mapping.ButtonAction(key_mapping.ActionKind.KEY_COMBO, ("win", "d"))
+        action = key_mapping.ButtonAction(
+            key_mapping.ActionKind.KEY_COMBO, ("ctrl", "shift", "p")
+        )
         display = _action_to_display(action)
         restored = _display_to_action(display)
         self.assertEqual(restored.kind, key_mapping.ActionKind.KEY_COMBO)
-        self.assertEqual(restored.keys, ("win", "d"))
+        self.assertEqual(restored.keys, ("ctrl", "shift", "p"))
+
+    def test_reference_action_labels_round_trip_to_windows_chords(self):
+        expected = {
+            "Escape": key_mapping.ActionKind.ESCAPE,
+            "Return": key_mapping.ActionKind.RETURN,
+            "Delete（退格）": key_mapping.ActionKind.DELETE_BACKWARD,
+            "方向上": key_mapping.ActionKind.ARROW_UP,
+            "方向下": key_mapping.ActionKind.ARROW_DOWN,
+            "方向左": key_mapping.ActionKind.ARROW_LEFT,
+            "方向右": key_mapping.ActionKind.ARROW_RIGHT,
+            "显示桌面": key_mapping.ActionKind.SHOW_DESKTOP,
+            "上下文菜单": key_mapping.ActionKind.CONTEXT_MENU,
+            "应用切换": key_mapping.ActionKind.APP_SWITCHER,
+        }
+        for label, action_kind in expected.items():
+            restored = _display_to_action(label)
+            self.assertEqual(restored.kind, action_kind, label)
+            self.assertEqual(restored.keys, (), label)
+            self.assertEqual(_action_to_display(restored), label)
+
+    def test_legacy_alt_escape_app_switch_is_displayed_as_reference_action(self):
+        action = key_mapping.ButtonAction(
+            key_mapping.ActionKind.KEY_COMBO, ("alt", "esc")
+        )
+        self.assertEqual(_action_to_display(action), "应用切换")
+
+    def test_reference_open_app_labels_round_trip_to_semantic_actions(self):
+        expected = {
+            "打开无线麦": key_mapping.ActionKind.OPEN_REMOTE_MIC,
+            "打开 Codex": key_mapping.ActionKind.OPEN_CODEX,
+            "打开 Claude": key_mapping.ActionKind.OPEN_CLAUDE,
+            "打开 cmux": key_mapping.ActionKind.OPEN_CMUX,
+            "打开 Chrome": key_mapping.ActionKind.OPEN_CHROME,
+        }
+        for label, action_kind in expected.items():
+            restored = _display_to_action(label)
+            self.assertEqual(restored.kind, action_kind, label)
+            self.assertEqual(_action_to_display(restored), label)
 
     def test_modifier_only_combo_round_trips_through_button_mapping(self):
         restored = _display_to_action("ctrl+shift")
@@ -84,7 +124,7 @@ class VoiceTriggerPresetTests(unittest.TestCase):
         )
         self.assertEqual(
             voice_hotkey_for_trigger_mode(key_mapping.VoiceTriggerMode.HOLD),
-            "lctrl+win",
+            "ralt",
         )
 
 
@@ -262,6 +302,44 @@ class BuildSaveModelTests(unittest.TestCase):
             selected_device_profile="invented-device",
         )
         self.assertEqual(new_config["selected_device_profile"], "xiaomi-rc003")
+
+    def test_secondary_display_map_round_trips_double_and_long_actions(self):
+        _, new_bindings = build_save_model(
+            button_display_map={"power": "escape"},
+            secondary_display_map={
+                "power": {
+                    "double_click": "f5",
+                    "long_press": "系统音量 +",
+                }
+            },
+            hotkey_text="win+h",
+            trigger_mode=key_mapping.VoiceTriggerMode.TOGGLE,
+            endpoint_display_text="",
+            base_config=self.base_config,
+            base_bindings=self.base_bindings,
+        )
+        self.assertEqual(
+            new_bindings["secondary_bindings"]["power"]["double_click"],
+            {"kind": "key_combo", "keys": ["f5"]},
+        )
+        self.assertEqual(
+            new_bindings["secondary_bindings"]["power"]["long_press"]["kind"],
+            "system_volume_up",
+        )
+
+    def test_blank_secondary_action_is_not_persisted(self):
+        _, new_bindings = build_save_model(
+            button_display_map={"power": "escape"},
+            secondary_display_map={
+                "power": {"double_click": "", "long_press": "禁用"}
+            },
+            hotkey_text="win+h",
+            trigger_mode=key_mapping.VoiceTriggerMode.TOGGLE,
+            endpoint_display_text="",
+            base_config=self.base_config,
+            base_bindings=self.base_bindings,
+        )
+        self.assertEqual(new_bindings["secondary_bindings"], {})
 
 
 class DefaultDisplayStateTests(unittest.TestCase):

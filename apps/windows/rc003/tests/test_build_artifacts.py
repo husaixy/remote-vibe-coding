@@ -194,14 +194,15 @@ class PyInstallerSpecTests(unittest.TestCase):
         self.assertIn("bridges.t1", text)
         self.assertIn("bridges.hanvon", text)
 
-    def test_spec_does_not_reference_frida_binary(self):
-        # Frida is still never bundled (see ovb_rc003.frida_compat) - only
-        # optionally fetched to a gitignored staging path by a separate,
-        # never-build-wired script. Checked against the *effective*
-        # (non-comment) content.
+    def test_spec_collects_only_an_optional_verified_frida_archive(self):
+        # The archive is never stored in source control. When the explicit
+        # fetch step supplies a .xz file, the spec may copy it as opaque data;
+        # it must not hard-code a release filename or treat it as a linked
+        # binary dependency.
         text = _strip_hash_comments(_SPEC_PATH.read_text(encoding="utf-8")).lower()
-        self.assertNotIn(".dll.xz", text)
-        self.assertNotIn("frida", text)
+        self.assertIn("frida_assets", text)
+        self.assertIn('glob("*.xz")', text)
+        self.assertNotIn("frida-gadget-17.15.3-windows-x86_64.dll.xz", text)
 
     def test_spec_bundles_the_verified_vb_cable_zip_as_data_not_a_binary_dependency(self):
         # XRBM-031: unlike Frida, the pinned VB-CABLE base package IS now

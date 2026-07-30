@@ -197,6 +197,13 @@ def main() -> None:
         raise SystemExit(
             windows_diagnostics.run_ble_diagnostics_subprocess_entrypoint(result_path)
         )
+    if "--rc003-hid-injector" in args:
+        # Hidden entry point used only by the verified Frida Gadget tap. It
+        # must never fall through to bridge startup.
+        from . import frida_compat
+
+        flag_index = args.index("--rc003-hid-injector")
+        raise SystemExit(frida_compat.injector_main(args[flag_index + 1 :]))
     if "--settings" in args:
         from . import settings_ui
 

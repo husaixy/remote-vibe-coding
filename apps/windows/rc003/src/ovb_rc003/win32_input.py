@@ -1,4 +1,4 @@
-"""Real Win32 key injection via SendInput.
+"""Real Win32 input for ordinary actions and the voice shortcut.
 
 Windows-only. Kept as thin as possible and separated from win32_keys.py's
 pure VK-code resolution so the mapping logic stays unit-testable everywhere
@@ -34,10 +34,12 @@ from __future__ import annotations
 
 import ctypes
 import sys
+import time
 from ctypes import wintypes
 from typing import Callable, List, Optional, Sequence, Tuple
 
 from . import win32_keys
+from .legacy_key_suppressor_windows import VOICE_EVENT_EXTRA_INFO
 
 _INPUT_KEYBOARD = 1
 _KEYEVENTF_KEYUP = 0x0002
@@ -135,6 +137,9 @@ _PHYSICAL_SCAN_CODES = {
 }
 
 RawSender = Callable[[Sequence[Tuple[int, bool]]], int]
+VoiceSender = Callable[[int, bool], None]
+
+_voice_backend: Optional[str] = None
 
 
 class Win32InputUnavailableError(Exception):
@@ -357,9 +362,186 @@ def send_key_combo_tap(
         )
 
 
+def _real_keybd_event(vk: int, key_up: bool) -> None:
+    """Emit one voice shortcut edge through the legacy Win32 keyboard API.
+
+    Doubao registers its global voice shortcut as a virtual-key shortcut.  The
+    upstream RC003 bridge uses ``keybd_event`` with the virtual key populated;
+    sending the same edge as a scan-code-only ``SendInput`` event is accepted
+    by Windows but is not recognized reliably by Doubao.
+    """
+
+    _require_windows()
+    user32 = ctypes.windll.user32  # type: ignore[attr-defined]
+    user32.MapVirtualKeyW.argtypes = (wintypes.UINT, wintypes.UINT)
+    user32.MapVirtualKeyW.restype = wintypes.UINT
+    user32.keybd_event.argtypes = (
+        wintypes.BYTE,
+        wintypes.BYTE,
+        wintypes.DWORD,
+        _ULONG_PTR,
+    )
+    user32.keybd_event.restype = None
+
+    scan_code = int(user32.MapVirtualKeyW(vk, 0))
+    flags = _KEYEVENTF_EXTENDEDKEY if vk in _EXTENDED_KEYS else 0
+    if key_up:
+        flags |= _KEYEVENTF_KEYUP
+    user32.keybd_event(vk, scan_code, flags, VOICE_EVENT_EXTRA_INFO)
+
+
+def reset_voice_backend() -> None:
+    """Forget the selected voice transport so a later call can re-probe it."""
+
+    global _voice_backend
+    _voice_backend = None
+
+
+def voice_backend_name() -> str:
+    """Return the transport selected for the current voice session."""
+
+    return _voice_backend or "unselected"
+
+
+def _real_voice_event(vk: int, key_up: bool) -> None:
+    """Emit a voice edge for the local hook to forward as a physical event."""
+
+    global _voice_backend
+    if _voice_backend is None:
+        _voice_backend = "keybd_event_physicalized"
+    _real_keybd_event(vk, key_up)
+
+
+def _best_effort_voice_up(vk_codes: Sequence[int], sender: VoiceSender) -> None:
+    for vk in reversed(vk_codes):
+        try:
+            sender(vk, True)
+        except Exception:
+            pass
+
+
+def send_voice_key_combo_down(
+    tokens: Sequence[str], *, _sender: Optional[VoiceSender] = None
+) -> None:
+    """Press a voice shortcut through the physicalized virtual-key path."""
+
+    sender = _sender or _real_voice_event
+    vk_codes = win32_keys.resolve_vk_codes(tokens)
+    delivered: List[int] = []
+    for vk in vk_codes:
+        try:
+            sender(vk, False)
+        except Win32InputUnavailableError:
+            raise
+        except Exception as exc:
+            _best_effort_voice_up(delivered, sender)
+            raise OSError(f"voice key-down delivery failed: {exc}") from exc
+        delivered.append(vk)
+
+
+def send_voice_key_combo_up(
+    tokens: Sequence[str], *, _sender: Optional[VoiceSender] = None
+) -> None:
+    """Release a voice shortcut through the selected voice transport."""
+
+    sender = _sender or _real_voice_event
+    vk_codes = list(reversed(win32_keys.resolve_vk_codes(tokens)))
+    for vk in vk_codes:
+        try:
+            sender(vk, True)
+        except Win32InputUnavailableError:
+            raise
+        except Exception as exc:
+            _best_effort_voice_up([vk], sender)
+            raise OSError(f"voice key-up delivery failed: {exc}") from exc
+
+
+def send_voice_key_combo_tap(
+    tokens: Sequence[str], *, _sender: Optional[VoiceSender] = None
+) -> None:
+    """Send a completed voice shortcut with the upstream 70 ms hold window."""
+
+    sender = _sender or _real_voice_event
+    vk_codes = win32_keys.resolve_vk_codes(tokens)
+    send_voice_key_combo_down(tokens, _sender=sender)
+    time.sleep(0.07)
+    try:
+        send_voice_key_combo_up(tokens, _sender=sender)
+    except Exception:
+        _best_effort_voice_up(vk_codes, sender)
+        raise
+
+
 def send_volume_up(*, _sender: Optional[RawSender] = None) -> None:
-    send_key_combo_tap(("volume_up",), _sender=_sender)
+    _send_semantic_tap(("volume_up",), _sender=_sender)
 
 
 def send_volume_down(*, _sender: Optional[RawSender] = None) -> None:
-    send_key_combo_tap(("volume_down",), _sender=_sender)
+    _send_semantic_tap(("volume_down",), _sender=_sender)
+
+
+# Semantic Windows actions.  These wrappers deliberately keep the action
+# vocabulary out of ``app.py``'s platform plumbing: a configured ``方向上``
+# action is an arrow action, not a UI string that happens to be translated to
+# the token ``up``.  Tests can inject the same sender used by the low-level
+# helpers, while production still emits one atomic SendInput batch.
+def _send_semantic_tap(
+    tokens: Sequence[str], *, _sender: Optional[RawSender] = None
+) -> None:
+    # Calling the default path without a keyword keeps these wrappers
+    # compatible with simple injected senders used by callers/tests; the
+    # explicit sender path remains available for ABI/batch tests.
+    if _sender is None:
+        send_key_combo_tap(tokens)
+    else:
+        send_key_combo_tap(tokens, _sender=_sender)
+
+
+def send_escape(*, _sender: Optional[RawSender] = None) -> None:
+    _send_semantic_tap(("escape",), _sender=_sender)
+
+
+def send_return(*, _sender: Optional[RawSender] = None) -> None:
+    _send_semantic_tap(("enter",), _sender=_sender)
+
+
+def send_arrow_up(*, _sender: Optional[RawSender] = None) -> None:
+    _send_semantic_tap(("up",), _sender=_sender)
+
+
+def send_arrow_down(*, _sender: Optional[RawSender] = None) -> None:
+    _send_semantic_tap(("down",), _sender=_sender)
+
+
+def send_arrow_left(*, _sender: Optional[RawSender] = None) -> None:
+    _send_semantic_tap(("left",), _sender=_sender)
+
+
+def send_arrow_right(*, _sender: Optional[RawSender] = None) -> None:
+    _send_semantic_tap(("right",), _sender=_sender)
+
+
+def send_delete_backward(*, _sender: Optional[RawSender] = None) -> None:
+    _send_semantic_tap(("backspace",), _sender=_sender)
+
+
+def send_show_desktop(*, _sender: Optional[RawSender] = None) -> None:
+    _send_semantic_tap(("win", "d"), _sender=_sender)
+
+
+def send_context_menu(*, _sender: Optional[RawSender] = None) -> None:
+    """Invoke the native Windows application/context-menu key."""
+
+    _send_semantic_tap(("apps",), _sender=_sender)
+
+
+def send_app_switcher(*, _sender: Optional[RawSender] = None) -> None:
+    _send_semantic_tap(("alt", "tab"), _sender=_sender)
+
+
+def send_volume_mute(*, _sender: Optional[RawSender] = None) -> None:
+    _send_semantic_tap(("volume_mute",), _sender=_sender)
+
+
+def send_play_pause(*, _sender: Optional[RawSender] = None) -> None:
+    _send_semantic_tap(("media_play_pause",), _sender=_sender)

@@ -17,18 +17,18 @@ class DefaultButtonActionsTests(unittest.TestCase):
     def test_matches_task_table_exactly(self):
         expected = {
             "mic": (key_mapping.ActionKind.VOICE, ()),
-            "power": (key_mapping.ActionKind.KEY_COMBO, ("escape",)),
-            "up": (key_mapping.ActionKind.KEY_COMBO, ("up",)),
-            "down": (key_mapping.ActionKind.KEY_COMBO, ("down",)),
-            "left": (key_mapping.ActionKind.KEY_COMBO, ("left",)),
-            "right": (key_mapping.ActionKind.KEY_COMBO, ("right",)),
-            "ok": (key_mapping.ActionKind.KEY_COMBO, ("enter",)),
-            "back": (key_mapping.ActionKind.KEY_COMBO, ("backspace",)),
+            "power": (key_mapping.ActionKind.ESCAPE, ()),
+            "up": (key_mapping.ActionKind.ARROW_UP, ()),
+            "down": (key_mapping.ActionKind.ARROW_DOWN, ()),
+            "left": (key_mapping.ActionKind.ARROW_LEFT, ()),
+            "right": (key_mapping.ActionKind.ARROW_RIGHT, ()),
+            "ok": (key_mapping.ActionKind.RETURN, ()),
+            "back": (key_mapping.ActionKind.DELETE_BACKWARD, ()),
             "volume_up": (key_mapping.ActionKind.SYSTEM_VOLUME_UP, ()),
             "volume_down": (key_mapping.ActionKind.SYSTEM_VOLUME_DOWN, ()),
-            "home": (key_mapping.ActionKind.KEY_COMBO, ("win", "d")),
-            "menu": (key_mapping.ActionKind.KEY_COMBO, ("shift", "f10")),
-            "tv": (key_mapping.ActionKind.KEY_COMBO, ("alt", "esc")),
+            "home": (key_mapping.ActionKind.SHOW_DESKTOP, ()),
+            "menu": (key_mapping.ActionKind.CONTEXT_MENU, ()),
+            "tv": (key_mapping.ActionKind.APP_SWITCHER, ()),
         }
         for button_id, (kind, keys) in expected.items():
             action = self.defaults[button_id]
@@ -55,6 +55,90 @@ class ButtonActionSerializationTests(unittest.TestCase):
         self.assertEqual(data["keys"], [])
         restored = key_mapping.ButtonAction.from_dict(data)
         self.assertEqual(restored.keys, ())
+
+    def test_reference_actions_are_semantic_and_not_key_combos(self):
+        for action_kind in (
+            key_mapping.ActionKind.ESCAPE,
+            key_mapping.ActionKind.RETURN,
+            key_mapping.ActionKind.ARROW_UP,
+            key_mapping.ActionKind.DELETE_BACKWARD,
+            key_mapping.ActionKind.SHOW_DESKTOP,
+            key_mapping.ActionKind.CONTEXT_MENU,
+            key_mapping.ActionKind.APP_SWITCHER,
+        ):
+            action = key_mapping.ButtonAction(action_kind)
+            self.assertEqual(action.keys, ())
+            self.assertEqual(
+                key_mapping.ButtonAction.from_dict(action.to_dict()), action
+            )
+
+    def test_reference_open_app_actions_are_first_class_actions(self):
+        for action_kind in (
+            key_mapping.ActionKind.OPEN_CODEX,
+            key_mapping.ActionKind.OPEN_CLAUDE,
+            key_mapping.ActionKind.OPEN_CMUX,
+            key_mapping.ActionKind.OPEN_CHROME,
+        ):
+            action = key_mapping.ButtonAction(action_kind)
+            self.assertEqual(action.keys, ())
+            self.assertEqual(
+                key_mapping.ButtonAction.from_dict(action.to_dict()), action
+            )
+
+
+class GestureBindingLookupTests(unittest.TestCase):
+    def test_legacy_flat_binding_is_single_click_only(self):
+        bindings = {
+            "bindings": {
+                "up": {"kind": "key_combo", "keys": ["up"]},
+            }
+        }
+
+        self.assertEqual(
+            key_mapping.button_action_for(
+                bindings, "up", key_mapping.ButtonTrigger.SINGLE_CLICK
+            ).keys,
+            ("up",),
+        )
+        self.assertEqual(
+            key_mapping.button_action_for(
+                bindings, "up", key_mapping.ButtonTrigger.DOUBLE_CLICK
+            ).kind,
+            key_mapping.ActionKind.DISABLED,
+        )
+
+    def test_secondary_actions_are_read_independently(self):
+        bindings = {
+            "bindings": {
+                "power": {"kind": "key_combo", "keys": ["escape"]},
+            },
+            "secondary_bindings": {
+                "power": {
+                    "double_click": {
+                        "kind": "key_combo",
+                        "keys": ["f5"],
+                    },
+                    "long_press": {
+                        "kind": "system_volume_up",
+                        "keys": [],
+                    },
+                }
+            },
+        }
+
+        self.assertEqual(
+            key_mapping.button_action_for(
+                bindings, "power", key_mapping.ButtonTrigger.DOUBLE_CLICK
+            ).keys,
+            ("f5",),
+        )
+        self.assertEqual(
+            key_mapping.button_action_for(
+                bindings, "power", key_mapping.ButtonTrigger.LONG_PRESS
+            ).kind,
+            key_mapping.ActionKind.SYSTEM_VOLUME_UP,
+        )
+        self.assertTrue(key_mapping.has_secondary_action(bindings, "power"))
 
 
 if __name__ == "__main__":

@@ -233,6 +233,7 @@ class ButtonMappingModelTests(unittest.TestCase):
         role_names = {value.data().decode() for value in model.roleNames().values()}
         for expected in (
             "buttonId", "displayName", "hidUsage", "actionText", "isMic",
+            "doubleClickText", "longPressText",
             "isSelected", "hotspotX", "hotspotY", "hotspotWidth",
             "hotspotHeight", "isVoice",
         ):
@@ -282,6 +283,19 @@ class ButtonMappingModelTests(unittest.TestCase):
         index = model.index(row, 0)
         self.assertEqual(model.data(index, model.ActionTextRole), settings_ui._MIC_ROW_DISPLAY)
 
+    def test_secondary_action_text_can_be_set_and_round_tripped(self):
+        model = self.Model()
+        row = model.index_of("power")
+        model.setSecondaryActionTextAt(row, "double_click", "f5")
+        model.setSecondaryActionTextAt(row, "long_press", "系统音量 +")
+        index = model.index(row, 0)
+        self.assertEqual(model.data(index, model.DoubleClickTextRole), "f5")
+        self.assertEqual(model.data(index, model.LongPressTextRole), "系统音量 +")
+        self.assertEqual(
+            model.to_secondary_display_map()["power"],
+            {"double_click": "f5", "long_press": "系统音量 +"},
+        )
+
     def test_to_display_map_round_trips_non_mic_entries_and_excludes_mic(self):
         model = self.Model()
         model.load_display_map({"power": "escape", "up": "up"})
@@ -289,6 +303,23 @@ class ButtonMappingModelTests(unittest.TestCase):
         self.assertEqual(result["power"], "escape")
         self.assertEqual(result["up"], "up")
         self.assertNotIn("mic", result)
+
+    def test_unconfigured_secondary_actions_have_an_explicit_display_value(self):
+        model = self.Model()
+        model.load_display_map({"power": "escape"})
+        index = model.index(model.index_of("power"), 0)
+        self.assertEqual(
+            model.data(index, model.DoubleClickTextRole),
+            settings_ui.SECONDARY_UNCONFIGURED_DISPLAY,
+        )
+        self.assertEqual(
+            model.data(index, model.LongPressTextRole),
+            settings_ui.SECONDARY_UNCONFIGURED_DISPLAY,
+        )
+        self.assertEqual(
+            model.to_secondary_display_map()["power"],
+            {"double_click": "", "long_press": ""},
+        )
 
     def test_selecting_a_button_flags_only_that_row_as_selected(self):
         model = self.Model()
@@ -339,7 +370,7 @@ class SettingsControllerTests(unittest.TestCase):
     def test_trigger_mode_switch_also_switches_the_paired_voice_hotkey(self):
         controller, _ = self._make_controller()
         controller.triggerModeIndex = 1
-        self.assertEqual(controller.hotkeyText, "lctrl+win")
+        self.assertEqual(controller.hotkeyText, "ralt")
         controller.triggerModeIndex = 0
         self.assertEqual(controller.hotkeyText, "ralt+space")
 

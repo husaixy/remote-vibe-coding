@@ -52,6 +52,7 @@ VK_CODES = {
     "volume_mute": 0xAD,
     "volume_down": 0xAE,
     "volume_up": 0xAF,
+    "apps": 0x5D,
     "caps_lock": 0x14,
     "num_lock": 0x90,
     "scroll_lock": 0x91,

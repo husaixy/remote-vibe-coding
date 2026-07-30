@@ -115,10 +115,49 @@ class SelectOutputSampleRateTests(unittest.TestCase):
         sink = EndpointPlaybackSink("CABLE Input", host_api="Windows WASAPI")
         sink._stream = stream
         sink._output_sample_rate_hz = 48000
+        sink._output_channels = 2
 
         sink.write([0, 16000, -16000])
 
-        self.assertEqual(stream.writes[0].shape, (9, 1))
+        self.assertEqual(stream.writes[0].shape, (9, 2))
+        self.assertEqual(stream.writes[0][:, 0].tolist(), stream.writes[0][:, 1].tolist())
+
+    def test_selects_stereo_when_the_endpoint_supports_two_channels(self):
+        sd = FakeSoundDevice(
+            devices=[_device("CABLE Input", 2, 0, default_samplerate=48000.0)],
+            host_apis=[{"name": "Windows WASAPI"}],
+        )
+        sink = EndpointPlaybackSink("CABLE Input", host_api="Windows WASAPI")
+
+        self.assertEqual(sink._select_output_channels(sd, 0), 2)
+
+    def test_falls_back_to_mono_for_a_mono_only_endpoint(self):
+        sd = FakeSoundDevice(
+            devices=[_device("Speaker", 1, 0)],
+            host_apis=[{"name": "Windows WASAPI"}],
+        )
+        sink = EndpointPlaybackSink("Speaker", host_api="Windows WASAPI")
+
+        self.assertEqual(sink._select_output_channels(sd, 0), 1)
+
+    def test_48k_resampler_keeps_interpolation_continuous_between_chunks(self):
+        class RecordingStream:
+            def __init__(self):
+                self.writes = []
+
+            def write(self, array):
+                self.writes.append(array[:, 0].tolist())
+
+        stream = RecordingStream()
+        sink = EndpointPlaybackSink("CABLE Input", host_api="Windows WASAPI")
+        sink._stream = stream
+        sink._output_sample_rate_hz = 48000
+
+        sink.write([0, 300])
+        sink.write([600])
+
+        self.assertEqual(stream.writes[0], [0, 0, 0, 100, 200, 300])
+        self.assertEqual(stream.writes[1], [400, 500, 600])
 
     def test_ambiguous_name_without_host_api_fails_closed(self):
         sd = FakeSoundDevice(

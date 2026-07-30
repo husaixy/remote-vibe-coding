@@ -13,6 +13,7 @@ tested on any OS.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import List, Optional, Sequence
 
@@ -152,7 +153,38 @@ class IMAADPCMDecoder:
         return self.predictor
 
 
-def postprocess(samples: Sequence[int], gain_db: float = 0.0) -> List[int]:
+class DCHighPassFilter:
+    """Remove slow ADPCM predictor bias without filtering speech frequencies."""
+
+    def __init__(self, sample_rate: float = SUPPORTED_SAMPLE_RATE_HZ, cutoff_hz: float = 20.0) -> None:
+        if sample_rate <= 0 or cutoff_hz <= 0:
+            raise ValueError("sample_rate and cutoff_hz must be positive")
+        self._alpha = math.exp(-2.0 * math.pi * cutoff_hz / sample_rate)
+        self.reset()
+
+    def reset(self) -> None:
+        self._previous_input = 0.0
+        self._previous_output = 0.0
+        self._initialized = False
+
+    def process(self, samples: Sequence[int]) -> List[int]:
+        if not samples:
+            return []
+        if not self._initialized:
+            self._previous_input = float(samples[0])
+            self._initialized = True
+
+        filtered: List[int] = []
+        for sample in samples:
+            current = float(sample)
+            output = current - self._previous_input + self._alpha * self._previous_output
+            self._previous_input = current
+            self._previous_output = output
+            filtered.append(min(32767, max(-32768, int(round(output)))))
+        return filtered
+
+
+def postprocess(samples: Sequence[int], gain_db: float = 10.0) -> List[int]:
     """3-tap smoothing filter plus gain, matching ATVVProtocol.swift's PCMPostprocessor."""
 
     if not samples:

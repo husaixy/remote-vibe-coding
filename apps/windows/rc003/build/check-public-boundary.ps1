@@ -76,6 +76,8 @@ $ErrorActionPreference = "Stop"
 $violations = New-Object System.Collections.Generic.List[string]
 
 $forbiddenBinaryExtensions = @(".exe", ".dll", ".pyd", ".zip", ".xz")
+$optionalFridaGadgetRelativePath = "src/ovb_rc003/frida_assets/frida-gadget-17.15.3-windows-x86_64.dll.xz"
+$optionalFridaGadgetSha256 = "B566D70189B6D551AD8F4E0BEA24DE08A3D4C0F559BB35B2BDB67D45182240C2"
 $textExtensions = @(".py", ".ps1", ".md", ".txt", ".json", ".yml", ".yaml", ".iss", ".spec", ".toml")
 
 $macAddressPattern = "([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}"
@@ -148,7 +150,7 @@ function Test-ExcludedGeneratedPath {
 
     $components = $FullName -split '[\\/]'
     foreach ($name in $ExcludedDirNames) {
-        if ($components -contains $name) {
+        if (($components -contains $name) -or ($name -eq "dist" -and ($components | Where-Object { $_ -like "dist-*" })) -or ($name -eq "pyinstaller-work" -and ($components | Where-Object { $_ -like "pyinstaller-work-*" })) -or ($name -eq "build" -and ($components | Where-Object { $_ -like "build-*" }))) {
             return $true
         }
     }
@@ -180,7 +182,20 @@ try {
     foreach ($file in $allFiles) {
         $ext = $file.Extension.ToLowerInvariant()
 
+        $relativePath = Get-NormalizedRelativePath -FullName $file.FullName -Root $ProjectRoot
+
         if ($forbiddenBinaryExtensions -contains $ext) {
+            $isVerifiedOptionalFridaGadget = $false
+            if ($relativePath -eq $optionalFridaGadgetRelativePath) {
+                $actualHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $file.FullName).Hash
+                $isVerifiedOptionalFridaGadget = $actualHash.Equals(
+                    $optionalFridaGadgetSha256,
+                    [System.StringComparison]::OrdinalIgnoreCase
+                )
+            }
+            if ($isVerifiedOptionalFridaGadget) {
+                continue
+            }
             $violations.Add("forbidden binary committed: $($file.FullName)")
             continue
         }
@@ -189,7 +204,6 @@ try {
             continue
         }
 
-        $relativePath = Get-NormalizedRelativePath -FullName $file.FullName -Root $ProjectRoot
         $isExempt = $brandingCheckExemptRelativePaths -contains $relativePath
 
         $text = Get-Content -Raw -LiteralPath $file.FullName -ErrorAction SilentlyContinue

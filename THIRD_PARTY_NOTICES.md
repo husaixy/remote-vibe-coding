@@ -12,6 +12,27 @@ order, capability parsing, and HID usage mapping are protocol references for thi
 Windows client. The client does not include upstream customer data or commercial
 branding.
 
+The RC003 HID report tap also adapts the upstream Xiaomi Frida Gadget transport:
+it observes the completed HidOverGatt read inside the paired Windows WUDF host so
+that the `0xF1`, `0x80`, and `0x81` usages which Windows Raw Input drops can be
+translated without guessing scan codes. The optional Gadget archive is fetched
+only by the explicit `apps/windows/rc003/build/fetch-frida-gadget.ps1` script and
+is verified against its pinned SHA-256 before use or extraction.
+
+## Frida Gadget
+
+- Project: `frida/frida`
+- Source: <https://github.com/frida/frida>
+- Release: `17.15.3` Windows x86_64 Gadget
+- Asset: `frida-gadget-17.15.3-windows-x86_64.dll.xz`
+- SHA-256: `B566D70189B6D551AD8F4E0BEA24DE08A3D4C0F559BB35B2BDB67D45182240C2`
+- License: Frida core license
+- License text: <https://raw.githubusercontent.com/frida/frida-core/main/COPYING>
+
+The binary is not committed to this repository. If installed, the tap requests
+UAC elevation only to inject the verified DLL into the validated RC003
+`WUDFHost.exe`; declining UAC leaves the rest of the client usable.
+
 ## open-voice-bridge Windows implementation
 
 - Project: `nijez/open-voice-bridge`

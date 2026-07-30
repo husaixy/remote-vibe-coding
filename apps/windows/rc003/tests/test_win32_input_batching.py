@@ -5,6 +5,7 @@ win32_input.py for why this dependency-injection seam exists.
 """
 
 import unittest
+from unittest import mock
 
 from ovb_rc003 import win32_input
 
@@ -288,6 +289,77 @@ class SendKeyComboTapTests(unittest.TestCase):
 
         with self.assertRaises(win32_input.Win32InputUnavailableError):
             win32_input.send_key_combo_tap(("a",), _sender=unavailable_sender)
+
+
+class VoiceKeyComboTests(unittest.TestCase):
+    def test_down_uses_virtual_key_edges_in_order(self):
+        calls = []
+
+        win32_input.send_voice_key_combo_down(
+            ("ralt", "space"), _sender=lambda vk, key_up: calls.append((vk, key_up))
+        )
+
+        self.assertEqual(
+            calls,
+            [
+                (win32_input.win32_keys.VK_CODES["ralt"], False),
+                (win32_input.win32_keys.VK_CODES["space"], False),
+            ],
+        )
+
+    def test_up_releases_virtual_key_edges_in_reverse_order(self):
+        calls = []
+
+        win32_input.send_voice_key_combo_up(
+            ("ralt", "space"), _sender=lambda vk, key_up: calls.append((vk, key_up))
+        )
+
+        self.assertEqual(
+            calls,
+            [
+                (win32_input.win32_keys.VK_CODES["space"], True),
+                (win32_input.win32_keys.VK_CODES["ralt"], True),
+            ],
+        )
+
+    def test_tap_holds_the_virtual_key_shortcut_before_releasing(self):
+        calls = []
+
+        with mock.patch.object(win32_input.time, "sleep") as sleep:
+            win32_input.send_voice_key_combo_tap(
+                ("ralt",), _sender=lambda vk, key_up: calls.append((vk, key_up))
+            )
+
+        vk = win32_input.win32_keys.VK_CODES["ralt"]
+        self.assertEqual(calls, [(vk, False), (vk, True)])
+        sleep.assert_called_once_with(0.07)
+
+    def test_down_failure_releases_only_keys_already_pressed(self):
+        calls = []
+
+        def sender(vk, key_up):
+            calls.append((vk, key_up))
+            if len(calls) == 2:
+                raise RuntimeError("simulated voice sender failure")
+
+        with self.assertRaises(OSError):
+            win32_input.send_voice_key_combo_down(("ralt", "space"), _sender=sender)
+
+        self.assertEqual(
+            calls,
+            [
+                (win32_input.win32_keys.VK_CODES["ralt"], False),
+                (win32_input.win32_keys.VK_CODES["space"], False),
+                (win32_input.win32_keys.VK_CODES["ralt"], True),
+            ],
+        )
+
+    def test_unavailable_voice_sender_is_re_raised(self):
+        def unavailable_sender(vk, key_up):
+            raise win32_input.Win32InputUnavailableError("not on windows")
+
+        with self.assertRaises(win32_input.Win32InputUnavailableError):
+            win32_input.send_voice_key_combo_down(("ralt",), _sender=unavailable_sender)
 
 
 class VolumeTests(unittest.TestCase):

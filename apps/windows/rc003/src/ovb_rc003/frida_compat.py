@@ -1,34 +1,30 @@
-"""Optional, SHA-pinned Frida Gadget compatibility layer for the RC003 "back"
-key only.
+"""RC003 HID-over-GATT compatibility tap.
 
-Background: the RC003's "back"/return button reports a HID Keyboard-page
-usage (0x00F1) that Windows' own BLE HID-over-GATT translation does not
-surface through normal Raw Input/keyboard events (see this package's
-top-level README.md "Known gaps" section, which documents this as the
-Back key gap).
-Every other button is read directly via raw_input_windows.py and needs no
-extra component.
+Windows' normal keyboard stack does not expose the RC003 usages for Back and
+the two volume buttons.  The original ``remote-bridge-hub`` Windows client
+solves that by observing the completed HID read inside the RC003 WUDF host via
+a verified Frida Gadget.  This module reuses that narrow transport and keeps
+button policy in the existing Remote Mic application.
 
-Scope deliberately cut for this source/build candidate: this module provides
-the SHA-pinned asset descriptor and an honest availability/degradation
-contract, but does NOT implement the actual remote-process injection step
-(that would require code that opens/writes another process's memory and is
-out of scope for a pre-real-device-verification candidate that must not
-request elevation or touch other processes). ``BackKeyCompatLayer.start()``
-therefore always degrades: the back key simply stays unmapped until a future
-task wires up verified, real-hardware-tested injection. This is a real,
-disclosed gap, not a simulated pass.
-
-No binary is bundled or downloaded by this repository. build/fetch-frida-
-gadget.ps1 is the only place a network fetch happens, and it verifies the
-official release artifact's SHA-256 before use.
+The tap is deliberately optional.  Without the explicitly fetched, SHA256
+verified Gadget archive the normal BLE/Raw Input client still starts, while
+these three missing usages remain unavailable instead of being guessed.
 """
 
 from __future__ import annotations
 
 import hashlib
+import json
+import os
 from dataclasses import dataclass
 from pathlib import Path
+import socket
+import threading
+import time
+from typing import Callable
+
+from . import frida_hid_tap_runtime
+from .frida_hid_tap_injector import inject_current_process
 
 
 @dataclass(frozen=True)
@@ -41,64 +37,293 @@ class ThirdPartyAsset:
     license_url: str
 
 
-# Official upstream release asset and its published SHA-256. Sourced from the
-# Frida project's own GitHub Releases; not authored by, and not affiliated
-# with, this project or its upstream reference.
 FRIDA_GADGET = ThirdPartyAsset(
     name="Frida Gadget",
-    version="17.15.3",
+    version=frida_hid_tap_runtime.GADGET_VERSION,
     url=(
         "https://github.com/frida/frida/releases/download/17.15.3/"
         "frida-gadget-17.15.3-windows-x86_64.dll.xz"
     ),
-    sha256="b566d70189b6d551ad8f4e0bea24de08a3d4c0f559bb35b2bdb67d45182240c2",
-    license_name="wxWindows Library Licence (Frida's own license)",
+    sha256=frida_hid_tap_runtime.GADGET_ARCHIVE_SHA256,
+    license_name="Frida core license",
     license_url="https://raw.githubusercontent.com/frida/frida-core/main/COPYING",
 )
 
+BACK_USAGE = 0x00F1
+VOLUME_UP_USAGE = 0x0080
+VOLUME_DOWN_USAGE = 0x0081
+MISSING_USAGE_TO_BUTTON = {
+    BACK_USAGE: "back",
+    VOLUME_UP_USAGE: "volume_up",
+    VOLUME_DOWN_USAGE: "volume_down",
+}
 
-def verify_asset(path: Path, asset: ThirdPartyAsset) -> bool:
-    """True only if ``path`` exists and its SHA-256 matches ``asset`` exactly."""
+
+def verify_asset(path: Path, asset: ThirdPartyAsset = FRIDA_GADGET) -> bool:
+    """Return true only when ``path`` is the exact pinned archive."""
 
     if not path.is_file():
         return False
     digest = hashlib.sha256(path.read_bytes()).hexdigest()
-    return digest.lower() == asset.sha256.lower()
+    return digest.casefold() == asset.sha256.casefold()
 
 
-class BackKeyCompatLayer:
-    """Optional compatibility shim for the RC003 back key. Always degrades in
-    this candidate; see module docstring.
-    """
+def gadget_archive_path() -> Path:
+    return frida_hid_tap_runtime.gadget_archive_path()
 
-    def __init__(self, gadget_path: Path = None, asset: ThirdPartyAsset = FRIDA_GADGET):  # type: ignore[assignment]
-        self._asset = asset
-        self._gadget_path = gadget_path
-        self._verified = gadget_path is not None and verify_asset(gadget_path, asset)
+
+def decode_rc003_ioctl_output(data: bytes) -> bytes | None:
+    """Extract the six-byte usage payload from a HidOverGatt read buffer."""
+
+    if len(data) != 9 or data[:3] != b"\x01\x00\x00":
+        return None
+    return data[3:9]
+
+
+def payload_usages(payload: bytes) -> set[int]:
+    if len(payload) != 6:
+        return set()
+    return {
+        int.from_bytes(payload[index : index + 2], "little")
+        for index in range(0, len(payload), 2)
+    } - {0}
+
+
+class RC003HidReportTap:
+    """Observe missing RC003 usages and emit edge-stable six-byte reports."""
+
+    def __init__(
+        self,
+        report_handler: Callable[[int, bytes], None],
+        *,
+        archive_path: Path | None = None,
+        enabled: bool = True,
+        retry_delay: float = 2.0,
+        heartbeat_timeout: float = 15.0,
+    ) -> None:
+        self.report_handler = report_handler
+        self.archive_path = archive_path or gadget_archive_path()
+        self.enabled = bool(enabled) and os.name == "nt"
+        self.retry_delay = max(0.5, float(retry_delay))
+        self.heartbeat_timeout = max(10.0, float(heartbeat_timeout))
+        self.stop_event = threading.Event()
+        self.thread: threading.Thread | None = None
+        self.active_usages: set[int] = set()
+        self._state_lock = threading.Lock()
+        self._last_wait_log = 0.0
+
+    @property
+    def dependency_available(self) -> bool:
+        return verify_asset(self.archive_path)
 
     @property
     def available(self) -> bool:
-        """Whether a verified gadget artifact is present on disk.
-
-        Even when True, ``start()`` still returns False in this candidate -
-        the injector itself is not implemented yet.
-        """
-
-        return self._verified
+        return self.dependency_available
 
     @property
     def status(self) -> str:
-        if self._gadget_path is None:
-            return "unavailable_no_path_configured"
-        if not self._verified:
-            return "unavailable_missing_or_hash_mismatch"
-        return "verified_but_injector_not_implemented_in_candidate"
+        if not self.enabled:
+            return "disabled_non_windows"
+        if not self.archive_path.is_file():
+            return "unavailable_gadget_not_downloaded"
+        if not self.dependency_available:
+            return "unavailable_gadget_hash_mismatch"
+        if self.thread is not None and self.thread.is_alive():
+            return "running_waiting_for_hidogatt_io"
+        return "ready_gadget_verified"
+
+    def _release_active(self) -> None:
+        with self._state_lock:
+            was_active = bool(self.active_usages)
+            self.active_usages.clear()
+        if was_active:
+            self.report_handler(1, b"\x00" * 6)
+
+    def _handle_ioctl_output(self, data: bytes) -> None:
+        payload = decode_rc003_ioctl_output(data)
+        if payload is None:
+            return
+        active = payload_usages(payload) & set(MISSING_USAGE_TO_BUTTON)
+        with self._state_lock:
+            previous = self.active_usages
+            if active == previous:
+                return
+            pressed = active - previous
+            released = previous - active
+            self.active_usages = set(active)
+        filtered = b"".join(
+            value.to_bytes(2, "little") for value in sorted(active)
+        )
+        self.report_handler(1, (filtered + b"\x00" * 6)[:6])
+        changes = [
+            f"{MISSING_USAGE_TO_BUTTON[value]}=down" for value in sorted(pressed)
+        ]
+        changes.extend(
+            f"{MISSING_USAGE_TO_BUTTON[value]}=up" for value in sorted(released)
+        )
+        print(
+            f"RC003 HID TAP {' '.join(changes)} raw={data.hex()}",
+            flush=True,
+        )
+
+    def _run(self) -> None:
+        injection_attempted_pid: int | None = None
+        while not self.stop_event.is_set():
+            pid = frida_hid_tap_runtime.find_rc003_hidogatt_host_pid()
+            if pid is None:
+                now = time.monotonic()
+                if now - self._last_wait_log >= 30.0:
+                    self._last_wait_log = now
+                    print("RC003 HID TAP waiting_for_rc003_host", flush=True)
+                self.stop_event.wait(self.retry_delay)
+                continue
+            if pid != injection_attempted_pid:
+                injection_attempted_pid = None
+
+            server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                server.bind(("127.0.0.1", frida_hid_tap_runtime.HID_TAP_PORT))
+                server.listen(1)
+                server.settimeout(1.0)
+                if injection_attempted_pid is None:
+                    try:
+                        inject_current_process(pid)
+                        injection_attempted_pid = pid
+                    except Exception as exc:
+                        print(
+                            f"RC003 HID TAP injection retry {type(exc).__name__}: {exc}",
+                            flush=True,
+                        )
+                        self.stop_event.wait(self.retry_delay)
+                        continue
+                try:
+                    client, _address = server.accept()
+                except socket.timeout:
+                    continue
+                client.settimeout(1.0)
+                try:
+                    print(
+                        f"RC003 HID TAP ATTACHED pid={pid} awaiting_io=true",
+                        flush=True,
+                    )
+                    buffer = b""
+                    last_heartbeat = time.monotonic()
+                    io_verified = False
+                    announced_ready = False
+                    while not self.stop_event.is_set():
+                        if frida_hid_tap_runtime.find_rc003_hidogatt_host_pid() != pid:
+                            print(f"RC003 HID TAP HOST CHANGED old_pid={pid}", flush=True)
+                            injection_attempted_pid = None
+                            break
+                        try:
+                            chunk = client.recv(65536)
+                        except socket.timeout:
+                            chunk = None
+                        if chunk == b"":
+                            break
+                        if chunk:
+                            buffer += chunk
+                            while b"\n" in buffer:
+                                line, buffer = buffer.split(b"\n", 1)
+                                try:
+                                    message = json.loads(line.decode("utf-8"))
+                                except (UnicodeDecodeError, json.JSONDecodeError):
+                                    continue
+                                kind = message.get("kind")
+                                if kind in {"heartbeat", "ready"}:
+                                    last_heartbeat = time.monotonic()
+                                elif kind == "gatt_read":
+                                    raw = message.get("raw", "")
+                                    try:
+                                        data = bytes.fromhex(raw)
+                                    except (TypeError, ValueError):
+                                        data = b""
+                                    if data:
+                                        io_verified = True
+                                        self._handle_ioctl_output(data)
+                                elif kind == "error":
+                                    print(
+                                        f"RC003 HID TAP hook_error={message.get('message')}",
+                                        flush=True,
+                                    )
+                        now = time.monotonic()
+                        if now - last_heartbeat >= self.heartbeat_timeout:
+                            print(
+                                f"RC003 HID TAP UNHEALTHY pid={pid} "
+                                "reason=agent_heartbeat_stale",
+                                flush=True,
+                            )
+                            break
+                        if io_verified and not announced_ready:
+                            announced_ready = True
+                            print(
+                                f"RC003 HID TAP READY pid={pid} io_verified=true",
+                                flush=True,
+                            )
+                finally:
+                    try:
+                        client.close()
+                    except OSError:
+                        pass
+                    self._release_active()
+            finally:
+                server.close()
+            if not self.stop_event.is_set():
+                self.stop_event.wait(0.5)
 
     def start(self) -> bool:
-        """Always returns False in this candidate (see module docstring).
+        if not self.enabled:
+            print("RC003 HID TAP disabled", flush=True)
+            return False
+        if not self.dependency_available:
+            print("RC003 HID TAP unavailable verified_gadget_not_installed", flush=True)
+            return False
+        if self.thread is not None and self.thread.is_alive():
+            return True
+        self.stop_event.clear()
+        self.thread = threading.Thread(
+            target=self._run,
+            name="rc003-hidogatt-report-tap",
+            daemon=True,
+        )
+        self.thread.start()
+        return True
 
-        Other buttons and voice are unaffected by this returning False; only
-        the back key stays unmapped.
-        """
+    def stop(self) -> None:
+        self.stop_event.set()
+        if self.thread is not None and self.thread is not threading.current_thread():
+            self.thread.join(timeout=3.0)
+            if self.thread.is_alive():
+                raise RuntimeError("RC003 HID report tap did not stop")
+        self._release_active()
+        self.thread = None
 
-        return False
+
+class BackKeyCompatLayer(RC003HidReportTap):
+    """Compatibility name retained for callers of the earlier back-only shim."""
+
+    def __init__(
+        self,
+        gadget_path: Path | None = None,
+        asset: ThirdPartyAsset = FRIDA_GADGET,
+        report_handler: Callable[[int, bytes], None] | None = None,
+    ) -> None:
+        archive_path = gadget_path or gadget_archive_path()
+        # Custom test assets can still use the generic descriptor without
+        # changing the production pinned archive.
+        self._custom_asset = asset
+        super().__init__(
+            report_handler or (lambda _report_id, _payload: None),
+            archive_path=archive_path,
+        )
+
+    @property
+    def dependency_available(self) -> bool:
+        return verify_asset(self.archive_path, self._custom_asset)
+
+
+def injector_main(argv: list[str] | None = None) -> int:
+    from .frida_hid_tap_injector import main
+
+    return main(argv)

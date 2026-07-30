@@ -5,7 +5,8 @@
 > Windows CI/构建流程。CI 可以证明代码能够编译并通过 Windows API 调用契约
 > 测试，但不能证明已经与真实的小米蓝牙遥控器 2 Pro / RC003 配对成功。
 > 当前产物未签名，也不会自动安装虚拟音频驱动。
-> 尚未完成真实 RC003 硬件配对、按键和语音链路验收。
+> 尚未完成真实 RC003 硬件配对、逐键和语音链路验收；返回/音量键的低层恢复路径
+> 已接入上游 Frida Gadget 方案，但仍需在本机安装可选资产后真机验收。
 
 这是本仓库独立维护的 Windows RC003 客户端，面向小米蓝牙遥控器 2 Pro / RC003，
 提供按键映射和 ATVV
@@ -129,6 +130,16 @@ Windows 默认输入/输出设备。如果要让语音识别/听写软件把 RC0
 两边选成同一个名字，或方向选反，都会让语音功能静默失败，但普通按键映射
 仍然正常工作。
 
+### 独立测试 Windows 系统听写（Win+H）
+
+这一步只用于排查 Windows 自己的听写链路，不是豆包输入法的快捷键验收。
+在记事本中打开一个可编辑文本框，先手动按一次 `Win+H`，确认听写栏出现并且
+说话后能输入文字。Windows 11 的联机语音识别入口是
+`设置 → 隐私和安全性 → 语音`；Windows 10 的入口是
+`设置 → 隐私 → 语音`。如果使用 VB-CABLE，系统或听写软件的麦克风输入必须
+选择 `CABLE Output`。Win+H 手动测试通过后，再继续测试 RC003；这只能说明
+Windows 系统听写可用，不能替代上方的豆包输入法快捷键测试。
+
 **一键随包安装（XRBM-031，可选）**：打开"设置 → 检查与修复"页，"可选：
 VB-CABLE 虚拟音频驱动"卡片会显示 CABLE Input/CABLE Output 两个端点当前是
 否已存在。如果还没安装，点击"安装/修复 VB-CABLE…"会先弹出一个说明对话框
@@ -177,17 +188,15 @@ VB-CABLE 虚拟音频驱动"卡片会显示 CABLE Input/CABLE Output 两个端�
    **不代表已经与 RC003 建立连接**，实际连接、按键和语音状态仍以下一步
    的日志为准；
 3. 按一下普通按键（例如方向键、确定键）确认按键映射生效；
-4. 在测试遥控器麦克风键之前，先在“按键映射”页确认麦克风键的组合键。新安装默认为较少冲突的 `Ctrl+Shift+U`；这个值必须与你的输入法语音快捷键相同。如果使用 Windows 系统语音键入，则改为 `Win+H`。然后先手动确认该组合键本身能正常工作：
-   打开记事本（或任意可编辑文本框），把光标点进文本区域，按一次键盘上的
-   按下刚才配置的组合键，确认目标输入法的语音功能出现、说话后有文字被输入。这需要同时满足：
-   光标确实停留在一个可编辑的文本输入框中（听写没有可输入目标时不会
-   生效）；Windows 已启用"联机语音识别"（Windows 11：设置 → 隐私和安全性 → 语音；Windows 10：设置 → 隐私 → 语音，听写依赖联网的语音识别服务）；
-   系统当前的麦克风输入设备选择的是
-   `CABLE Output`（如果按上一节配置了 VB-CABLE）。手动测试通过后，光标
-   保持在同一个可编辑文本框中，按住遥控器麦克风键说话，检查是否有文字
-   被输入——同样要求语音输出/系统麦克风输入的方向配置与手动测试时一致，
-   否则语音会静默失败（按键仍然可用）；如果手动组合键都无法工作，请先
-   解决那个问题，本程序不能让本来就不工作的系统听写变得可用；
+4. 在测试遥控器麦克风键之前，先在“按键映射”页确认麦克风键的组合键。新安装的
+   豆包输入法预设为切换模式 `ralt+space`、按住模式 `ralt`；这个值必须与豆包输入法
+   的语音快捷键相同，不要把 Windows `Win+H` 当作豆包快捷键。然后先手动确认该
+   组合键本身能正常工作：打开记事本（或任意可编辑文本框），把光标点进文本区域，
+   按一次键盘上的组合键，确认豆包语音功能出现并能输入文字。豆包的麦克风输入设备
+   也必须选择 `CABLE Output`（如果按上一节配置了 VB-CABLE）。手动测试通过后，
+   光标保持在同一个可编辑文本框中，按住遥控器麦克风键说话，检查是否有文字被输入；
+   如果手动组合键都无法启动豆包，请先解决豆包快捷键或输入设备配置问题，本程序
+   不能让本来就不工作的豆包输入法变得可用；
 5. 需要时从 Start Menu 选择"停止 Remote Mic · RC003"结束桥接，
    或从"设置 → 应用"/Start Menu 的"卸载"条目卸载（卸载会先自动停止
    正在运行的进程，再删除安装时写入的程序文件）。遇到按键/语音/启动
@@ -217,9 +226,9 @@ VB-CABLE 虚拟音频驱动"卡片会显示 CABLE Input/CABLE Output 两个端�
    显示未启动、已启动/运行中、已经在运行、启动异常或快速退出四种状态之
    一，"运行中"只说明进程本身存活，**不代表已经与 RC003 建立连接**；
 3. 按一下普通按键（例如方向键、确定键）确认按键映射生效；
-4. 手动确认已配置语音组合键的步骤和上面"安装器用户"一节完全相同（打开
-   记事本、光标点进可编辑文本框、按下已配置的组合键、确认语音识别已启用、
-   确认系统麦克风输入选择的是 `CABLE Output`），这里不重复；
+4. 手动确认豆包输入法语音快捷键的步骤和上面"安装器用户"一节完全相同（打开
+   记事本、光标点进可编辑文本框、按下已配置的组合键、确认豆包能输入文字、
+   确认豆包麦克风输入选择的是 `CABLE Output`），这里不重复；
 5. **停止**：便携版没有停止脚本，也没有 Start Menu 条目——需要打开
    任务管理器（`Ctrl+Shift+Esc`），在"详细信息"标签页找到
    `RemoteMicRC003.exe` 对应的进程，选择"结束任务"；
@@ -237,13 +246,14 @@ VB-CABLE 虚拟音频驱动"卡片会显示 CABLE Input/CABLE Output 两个端�
 
 RC003 共 **13 个物理按键**（12 个普通按键 + 1 个固定的麦克风按键）；遥控器
 **没有独立的物理静音键**（"系统静音"只是可选的手动绑定，不是任何按键的默认
-映射）；"返回"键在本候选中未映射，详见下方的已知限制。
+映射）；"返回"默认映射为退格动作；如果设备交付了未识别的 Raw Input 签名，需按
+下方的按键采集流程学习该物理签名。
 
 ### 隐私与来源、真机验证事项
 
 不持久化保存真实蓝牙地址、HID 路径或设备令牌；本候选源自同一 GPL-3.0
 参考项目的 Windows 实现，并在本仓库中完成了品牌、构建和说明适配。设备配对、
-自动发现/重连、逐键真实行为、ATVV 语音延迟与音量、用户配置的语音组合键实际
+自动发现/重连、逐键真实行为、ATVV 语音延迟与音量、豆包输入法语音快捷键实际
 效果均待真机核验。只有用户明确确认后，程序才会通过 Windows 的 `runas`/UAC
 启动 VB-Audio 官方安装器；Remote Mic 自身不会提权。
 
@@ -253,9 +263,10 @@ Windows 客户端围绕 RC003 使用场景实现，主要功能如下：
 
 - 使用 **WinRT BLE** 查找已配对的 RC003，并按设备名称精确匹配；找到 0 个或多个候选时都会拒绝猜测。
 - 使用 Windows **Raw Input** 接收遥控器普通按键，并校验选中的 HID 路径，避免误接收另一只相同型号设备的事件。
+- 对 Windows Raw Input 丢失的返回、音量+、音量- HID usages（`0xF1`、`0x80`、`0x81`），可选复用上游的 Frida Gadget WUDFHost tap；只有显式下载并校验 Gadget 后才会启用。Remote Mic 不会自动提权；需要 tap 时，用户必须从已明确提升权限的终端启动桥接。
 - 连接 ATVV GATT 服务，协商能力，接收并解码 16 kHz IMA/DVI ADPCM 语音帧。
 - 使用 **PortAudio** 把解码后的语音写入用户明确选择的输出端点；不会自动使用 Windows 默认设备。
-- 使用 **SendInput** 发送用户配置的语音组合键。默认值为 `Ctrl+Shift+U`；使用 Windows 语音输入时可改为 `Win+H`。
+- 语音快捷键使用带私有标记的虚拟键 `keybd_event`；RC003 自己的低级键盘钩子只对该标记清除 `LLKHF_INJECTED`，再把右 Alt 事件转交给后续钩子，因此豆包看到的形状与实体右 Alt 一致，不影响其他程序的合成键。默认切换模式为 `ralt+space`，按住模式为 `ralt`；不把 Windows `Win+H` 当作豆包输入法的验收目标。
 - 提供 RC003 的 13 键映射界面。麦克风键由 ATVV 协议固定处理；电源、返回、音量键在 Raw Input 扫描码层直接映射为 Windows 动作。
 - 提供“连接”“按键”“权限”“检查与修复”四个设置页面；诊断页会区分“已检测到”和“需要手动验证”，不会把进程存活伪装成硬件验收通过。
 - 设置窗口使用 PySide6 Essentials + Qt Quick/QML；便携版和安装器都通过 PyInstaller 打包，不要求终端用户另装 Python 或 Qt。
@@ -271,7 +282,7 @@ Windows 客户端围绕 RC003 使用场景实现，主要功能如下：
 
 1. 设置页保存设备、输出端点和按键映射；保存时会校验设备类型、组合键和音频端点。
 2. 桥接进程启动单实例保护，并由连接监督器负责 BLE 会话、Raw Input 监听和重连。
-3. 普通按键进入映射表后通过 SendInput 注入 Windows 按键；语音按键启动/停止 ATVV 音频流，并把解码数据写入选定端点。
+3. 可选的 RC003 HID tap 在配对的 WUDFHost 内读取缺失 usage，再把稳定的 `back/volume_up/volume_down` 边沿送入同一映射层；普通动作仍通过 SendInput，语音快捷键通过物理化的右 Alt 事件，随后启动/停止 ATVV 音频流。
 4. BLE 断开、Raw Input 路径失效、热键发送失败或音频写入失败时，相关资源会先关闭，再按策略重连；不会继续向失效音频端点写入数据。
 
 设备发现、音频端点和语音热键均采用“明确选择、失败即停止”的策略。程序不保存真实
@@ -294,6 +305,25 @@ $env:PYTHONPATH = Join-Path (Get-Location) 'src'
 .\build\build-candidate.ps1
 ```
 
+如果需要恢复 Windows Raw Input 丢失的返回/音量 usages，可在构建前显式获取
+上游 Frida Gadget（不会由构建脚本自动下载）：
+
+```powershell
+.\build\fetch-frida-gadget.ps1
+```
+
+该脚本会把固定版本、固定 SHA-256 的压缩资产放到被 `.gitignore` 忽略的
+`src\ovb_rc003\frida_assets`；PyInstaller 只在该文件存在时把它带入候选产物。
+运行桥接时 tap 会验证资产，定位 RC003 的 WUDFHost，并只在当前进程已有管理员权限时
+尝试注入；普通启动不会弹出提权提示，权限不足只会让 tap 不可用，不会阻止 BLE、普通
+按键或语音链路启动。需要 tap 时可在管理员 PowerShell 中启动：
+
+```powershell
+$root = (Get-Location).Path
+Start-Process -Verb RunAs -FilePath (Join-Path $root '.venv\Scripts\python.exe') `
+  -WorkingDirectory $root -ArgumentList '-m', 'ovb_rc003'
+```
+
 构建脚本会先执行公开边界检查，再构建 PyInstaller 目录、便携版 ZIP、Inno Setup
 安装器和 `SHA256SUMS.txt`。安装器的编译需要 Windows 上可用的 Inno Setup；VB-CABLE
 官方压缩包只有在显式传入固定哈希的获取步骤后才会下载，程序不会在构建或运行时
@@ -304,6 +334,63 @@ $env:PYTHONPATH = Join-Path (Get-Location) 'src'
 ```powershell
 .\dist\RemoteMicRC003\RemoteMicRC003.exe --dry-run
 ```
+
+### 按键采集、回放与动作适配
+
+不要直接修改 `raw_input_windows.py` 里的扫描码来猜测返回键或音量键。先用被动采集
+工具确认 Windows 实际交付的是键盘事件还是 HID report，再把稳定的物理签名绑定到
+RC003 的逻辑键；采集过程不会执行任何已配置动作。
+
+在本目录的 PowerShell 中运行：
+
+```powershell
+$env:PYTHONPATH = Join-Path (Get-Location) 'src'
+.\.venv\Scripts\python.exe src\rc003_key_test.py guided --duration 20
+```
+
+更推荐使用按键向导：它会依次提示返回、音量+、音量-，每个键完整按下并释放后
+自动进入下一个键，不显示鼠标或其他设备的 Raw Input，也不会执行音量或删除动作。
+如果需要逐个手动运行，也可以使用：
+
+```powershell
+.\.venv\Scripts\python.exe src\rc003_key_test.py capture --assign back
+.\.venv\Scripts\python.exe src\rc003_key_test.py capture --assign volume_up
+.\.venv\Scripts\python.exe src\rc003_key_test.py capture --assign volume_down
+```
+
+每次命令只测试一个键：按一下目标键并完整释放。工具会在
+`%LOCALAPPDATA%\RemoteMic\RC003\captures` 保存 JSONL 原始样本；只有同时采集到按下、释放
+且没有解码错误时，才会把物理签名写入 `key_bindings.json` 的 `physical_bindings`。失败或
+超时不会污染已有绑定，也不会写入 HID 路径或蓝牙地址。绑定完成后重启桥接，再用下面的
+命令离线确认样本仍然同时包含按下和释放：
+
+```powershell
+.\.venv\Scripts\python.exe src\rc003_key_test.py replay `
+  --input "$env:LOCALAPPDATA\RemoteMic\RC003\captures\<capture>.jsonl" `
+  --button back
+```
+
+如果尚未安装可选 Frida Gadget，或 tap 日志显示没有找到 RC003 WUDFHost，普通采集工具
+在按键时仍然完全没有事件，再运行广域 Raw Input 探针。它只记录
+完整的 `WM_INPUT`，不会执行映射或注入按键；`--seconds` 到期后会自动退出：
+
+```powershell
+.\.venv\Scripts\python.exe src\rc003_broad_raw_probe.py `
+  --seconds 30 `
+  --output "$env:LOCALAPPDATA\RemoteMic\RC003\logs\broad-raw-probe.jsonl"
+```
+
+看到 `kind=ready` 后，依次只按一个目标键并完整释放。若日志有 `raw_input`，先保留
+其中的 `raw_type`、`body`、键盘字段和 `path` 交给解码适配；不要把 `path` 或蓝牙
+地址复制进 `key_bindings.json`。若连广域探针也没有 `raw_input`，但 tap 已显示 `READY`
+后仍没有 `RC003 HID TAP ...=down`，问题在配对设备的 HidOverGatt 注入/报告链路，
+而不是按键动作映射。
+
+若回放通过但动作仍不对，问题在语义动作配置而不是物理识别；在设置页检查该逻辑键
+的 Windows 动作。语音键不应通过普通 `physical_bindings` 伪装成普通动作，必须单独
+验收：先手动确认配置的**豆包输入法语音快捷键**在文本框中可启动，再按遥控器语音键，
+同时检查 ATVV 音频、输出端点和日志中的 voice lifecycle。Windows `Win+H` 只能作为
+另一个独立的系统听写适配目标，不能替代豆包输入法验收。
 
 公开边界检查会阻止源码、日志、测试输出或未审查的本地路径进入公开发布范围：
 
@@ -319,6 +406,9 @@ Windows GitHub Actions 工作流位于 `.github/workflows/windows-rc003-ci.yml`�
 
 - 当前版本是源码/构建候选，未签名，尚未完成真实 Windows RC003 的配对、逐键、重连、
   ATVV 延迟、音量和语音组合键验收。
+- Frida Gadget 是可选的第三方二进制；没有执行显式获取脚本时，返回/音量缺失 usages
+  不会被猜测或伪造。执行脚本、从管理员终端启动后，还必须在日志中看到 tap ready 和
+  真实按键边沿。
 - 遥控器没有独立的物理静音键；语音键的 F5 兼容事件只用于识别，不再作为普通 F5 注入到主机。
 - Windows 权限页只能打开系统设置页面；Windows 没有一个可供本程序可靠读取的统一
   权限状态 API，因此不会显示虚假的“已授权”。
@@ -337,6 +427,9 @@ Windows GitHub Actions 工作流位于 `.github/workflows/windows-rc003-ci.yml`�
 和归属记录见 `ATTRIBUTION.md`、仓库根目录 `COPYRIGHT.md` 与
 `THIRD_PARTY_NOTICES.md`。VB-CABLE 是 VB-Audio 的独立 Donationware；本项目不把它
 当作 GPL 代码，也不会把付费的 A+B/C+D 版本伪装成随包内容。
+RC003 缺失 HID 报告的恢复路径参考 `xxb26553663-star/remote-bridge-hub` 的
+Frida Gadget 实现；Frida 的版本、哈希和许可证见仓库根目录
+`THIRD_PARTY_NOTICES.md`。
 
 ## 发布说明
 
