@@ -1,6 +1,6 @@
 # Remote Mic · Windows 版本（RC003）
 
-这是 `miaomiaozii/remote-mic-app` 的 Windows-only 维护分支，面向小米蓝牙遥控器 2 Pro（RC003）。macOS 应用、Swift 工程和 macOS 发布资源不属于本分支。
+这是 `miaomiaozii/windows-remote-mic-app` 仓库，面向小米蓝牙遥控器 2 Pro（RC003）。macOS 应用、Swift 工程和 macOS 发布资源不属于本仓库。
 
 Windows 客户端位于 [`apps/windows/rc003`](apps/windows/rc003/README.md)，提供：
 
