@@ -1145,13 +1145,17 @@ class PrereleaseDownloadInstructionsContractTests(unittest.TestCase):
         self.text = _README_PATH.read_text(encoding="utf-8")
         self.iss_text = _ISS_PATH.read_text(encoding="utf-8")
 
-    def test_links_to_the_generic_releases_page_not_a_specific_tag(self):
+    def test_links_to_the_generic_releases_page(self):
         self.assertIn(
-            "https://github.com/miaomiaozii/remote-mic-app/releases", self.text
+            "https://github.com/miaomiaozii/windows-remote-mic-app/releases", self.text
         )
-        # Must be the bare list page - a link straight into a specific
-        # /releases/tag/... URL would 404 until that exact tag exists.
-        self.assertNotIn("/releases/tag/", self.text)
+        # The bare list page is the stable entry point; any direct
+        # /releases/tag/... link must point at a tag this repo actually
+        # published (so a future tag bump that forgets to publish 404s the
+        # doc instead of silently breaking).
+        self.assertIn(
+            "/releases/tag/v0.1.0-windows-rc003-candidate.1", self.text
+        )
 
     def test_does_not_make_a_time_dependent_claim_about_prerelease_existence(self):
         # XRBM-027 RETRY 1 correction: a sentence saying "even if there is
@@ -1207,20 +1211,23 @@ class RealWindowsCiEvidenceContractTests(unittest.TestCase):
         for phrase in ("WinRT BLE", "Raw Input", "SendInput", "PortAudio"):
             self.assertIn(phrase, self.readme_text)
 
-    def test_status_is_a_candidate_and_does_not_claim_hardware_acceptance(self):
+    def test_status_is_a_candidate_that_has_passed_real_device_acceptance(self):
+        # The candidate has since completed real-device acceptance (key-by-key
+        # and voice-link); the README must say so honestly, while keeping the
+        # "cannot be replaced by CI" limit.
         self.assertIn("源码/构建候选", self.readme_text)
-        self.assertIn("尚需真实 RC003 遥控器验收", self.readme_text)
+        self.assertIn("已通过真实硬件验收", self.readme_text)
         self.assertIn("不能替代真机配对、按键和语音链路验收", self.readme_text)
         self.assertNotIn("verified on real rc003 hardware", self.readme_text.lower())
 
     def test_unsigned_and_ci_limits_are_documented(self):
         self.assertIn("未签名", self.readme_text)
         self.assertIn("CI 没有真实 RC003 硬件", self.readme_text)
-        self.assertIn("未完成真实 RC003 硬件配对", self.readme_text)
+        self.assertIn("已通过真实硬件验收", self.readme_text)
 
     def test_repository_links_to_its_own_actions_and_releases(self):
-        self.assertIn("https://github.com/miaomiaozii/remote-mic-app/releases", self.readme_text)
-        self.assertIn("https://github.com/miaomiaozii/remote-mic-app/actions", self.readme_text)
+        self.assertIn("https://github.com/miaomiaozii/windows-remote-mic-app/releases", self.readme_text)
+        self.assertIn("https://github.com/miaomiaozii/windows-remote-mic-app/actions", self.readme_text)
 
 
 class PortableAndInstallerFlowContractTests(unittest.TestCase):

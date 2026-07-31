@@ -6,5 +6,8 @@ __pycache__/
 .pytest_cache/
 
 # Local project-control records are not part of the public source release.
-docs/
+docs/*
+!docs/screenshots/
+!docs/screenshots/settings-connection.png
+!docs/screenshots/settings-buttons.png
 AGENTS.md

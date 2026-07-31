@@ -1,6 +1,6 @@
 # Remote Mic — Windows client (RC003)
 
-> **状态：已完成真实 RC003 遥控器的配对、逐键与语音链路验收。** 本目录包含
+> **状态：已通过真实硬件验收的源码/构建候选。** 本目录包含
 > 跨平台协议测试，以及针对 WinRT BLE、Raw Input、SendInput 和 PortAudio 的
 > Windows CI/构建流程。CI 可以证明代码能够编译并通过 Windows API 调用契约
 > 测试；此外，本候选已在真实小米蓝牙遥控器 2 Pro / RC003 上验证：方向键、
@@ -25,6 +25,14 @@ Windows 系统录音输入页面，绝不会启动 RC003 BLE/HID/ATVV 桥接。D
 > 本节面向想要试用这个候选版本的用户；后面的技术说明用于开发者和维护者。
 > 本候选已完成真实 RC003 真机验收（逐键、语音链路）；未签名，首次运行
 > 可能触发 SmartScreen 提示。
+
+### 界面截图
+
+![连接设置页](../../../docs/screenshots/settings-connection.png)
+
+![按键映射页](../../../docs/screenshots/settings-buttons.png)
+
+> 截图在 Windows 11 + RC003 实测环境拍摄；如与你的系统主题/分辨率不同属正常差异。
 
 ### 系统要求
 
@@ -442,9 +450,14 @@ Frida Gadget 实现；Frida 的版本、哈希和许可证见仓库根目录
 
 ## 发布说明
 
-Windows 候选版以预发行版发布（tag 形如
-`v0.1.0-windows-rc003-candidate.1`）。每个版本的安装器、便携版 ZIP 和
-`SHA256SUMS.txt` 必须来自同一次 Windows CI 构建；发布前应在真实 RC003 上完成
-配对、按键和语音链路验收，并在发布说明中明确写出验收范围。
+Windows 候选版以预发行版发布。首个发布：
+
+- 发布列表页：<https://github.com/miaomiaozii/windows-remote-mic-app/releases>
+- 具体发布：<https://github.com/miaomiaozii/windows-remote-mic-app/releases/tag/v0.1.0-windows-rc003-candidate.1>
+
+每个版本的安装器、便携版 ZIP 和 `SHA256SUMS.txt` 必须来自同一次 Windows CI
+构建；发布前已在真实 RC003 上完成配对、按键和语音链路验收，并在发布说明中
+明确写出验收范围。下载哪一个、如何安装，见上文"中文安装与使用说明"的
+"下载与安装"一节。
 
 完整的版本历史见本目录的 [`CHANGELOG.md`](CHANGELOG.md)。
