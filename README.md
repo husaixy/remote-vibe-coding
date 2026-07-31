@@ -9,7 +9,9 @@ Windows 客户端位于 [`apps/windows/rc003`](apps/windows/rc003/README.md)，�
 - PortAudio 输出到用户明确选择的音频端点；
 - PySide6/Qt Quick 设置窗口、诊断和 PyInstaller/Inno Setup 构建。
 
-当前版本仍是源码/构建候选，尚未完成真实 RC003 遥控器的配对、逐键和语音链路验收；CI 和自动构建不能替代真实硬件验收。
+当前版本已完成真实 RC003 遥控器的配对、逐键与语音链路验收（方向/OK/Home/Menu/
+TV/Power/返回/音量± 全部单次触发，麦克风键可启动豆包输入法并识别语音）。产物
+未签名；CI 和自动构建不能替代真实硬件验收。
 
 ## 本地运行
 
@@ -21,6 +23,12 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 $env:PYTHONPATH = Join-Path (Get-Location) 'src'
 .\.venv\Scripts\python.exe -m ovb_rc003 --settings
+```
+
+运行桥接（单独的桥接进程）：
+
+```powershell
+.\.venv\Scripts\python.exe -m ovb_rc003 --bridge
 ```
 
 运行测试：
