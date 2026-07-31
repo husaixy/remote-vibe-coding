@@ -75,10 +75,11 @@ Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: 
 [Icons]
 ; Primary Start Menu and optional desktop shortcuts both open Settings -
 ; neither silently starts bridge mode (BLE/HID/audio) without the user
-; having seen/confirmed configuration first.
+; having seen/confirmed configuration first. The exe's no-argument form
+; already opens Settings; --settings is kept explicit for clarity.
 Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Parameters: "--settings"
 Name: "{group}\{#AppName} 设置"; Filename: "{app}\{#AppExeName}"; Parameters: "--settings"
-Name: "{group}\启动 {#AppName}"; Filename: "{app}\{#AppExeName}"
+Name: "{group}\启动 {#AppName}"; Filename: "{app}\{#AppExeName}"; Parameters: "--bridge"
 Name: "{group}\停止 {#AppName}"; Filename: "powershell.exe"; Parameters: "-ExecutionPolicy Bypass -File ""{app}\stop-app.ps1"" -AppPath ""{app}"""; WorkingDir: "{app}"; Flags: runminimized
 Name: "{group}\卸载 {#AppName}"; Filename: "{uninstallexe}"
 Name: "{userdesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Parameters: "--settings"; Tasks: desktopicon
@@ -86,8 +87,8 @@ Name: "{userdesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Parameters: "
 
 [Run]
 ; Post-install may open Settings, but must never silently start the
-; no-argument bridge (that would touch BLE/HID/audio before the user has
-; configured anything) - unchecked by default either way.
+; bridge (that would touch BLE/HID/audio before the user has configured
+; anything) - unchecked by default either way.
 Filename: "{app}\{#AppExeName}"; Parameters: "--settings"; Description: "打开 {#AppName} 设置"; Flags: postinstall nowait skipifsilent unchecked
 
 [UninstallRun]

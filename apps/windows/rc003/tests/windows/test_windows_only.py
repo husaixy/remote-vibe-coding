@@ -23,10 +23,12 @@ event shape the device actually produces, ATVV voice playback, back-key
 compatibility layer).
 """
 
+import os
 import sys
 import unittest
 
 _ON_WINDOWS = sys.platform == "win32"
+_ALLOW_LIVE_INPUT_TESTS = os.environ.get("RC003_ALLOW_LIVE_INPUT_TESTS") == "1"
 
 
 def _has_module(name: str) -> bool:
@@ -37,7 +39,10 @@ def _has_module(name: str) -> bool:
     return True
 
 
-@unittest.skipUnless(_ON_WINDOWS, "Windows-only: SendInput requires the Win32 API")
+@unittest.skipUnless(
+    _ON_WINDOWS and _ALLOW_LIVE_INPUT_TESTS,
+    "live keyboard injection tests are disabled by default; use the isolated sender tests",
+)
 class Win32InputAvailabilityTests(unittest.TestCase):
     def test_send_key_combo_tap_does_not_raise_on_windows(self):
         from ovb_rc003 import win32_input

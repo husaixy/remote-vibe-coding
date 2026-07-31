@@ -123,11 +123,13 @@ class WinRTModules:
     cccd_value: Any
     device_information: Any
     data_writer_factory: Callable[[], Any]
+    bluetooth_cache_mode: Any
 
 
 def _import_winrt() -> WinRTModules:
     try:
         from winrt.windows.devices.bluetooth import (
+            BluetoothCacheMode,
             BluetoothConnectionStatus,
             BluetoothLEDevice,
         )
@@ -161,6 +163,7 @@ def _import_winrt() -> WinRTModules:
         cccd_value=GattClientCharacteristicConfigurationDescriptorValue,
         device_information=DeviceInformation,
         data_writer_factory=DataWriter,
+        bluetooth_cache_mode=BluetoothCacheMode,
     )
 
 
@@ -262,7 +265,15 @@ class RC003BleSession:
         )
 
         service_uuid = uuid.UUID(proto.VOICE_SERVICE_UUID)
-        service_result = await self._device.get_gatt_services_for_uuid_async(service_uuid)
+        # Windows caches the GATT table per device; a stale or incomplete
+        # cache can hide the ATVV characteristics that this app must read
+        # (observed as "ATVV characteristic not found"). Query the service
+        # and characteristics with UNCACHED so the device is re-read on the
+        # wire instead of trusting the local cache, matching the upstream
+        # remote-bridge-hub transport.
+        service_result = await self._device.get_gatt_services_for_uuid_with_cache_mode_async(
+            service_uuid, winrt.bluetooth_cache_mode.UNCACHED
+        )
         if (
             service_result.status != winrt.gatt_communication_status.SUCCESS
             or not service_result.services
@@ -302,10 +313,18 @@ class RC003BleSession:
     @staticmethod
     async def _require_characteristic(service, characteristic_uuid: str, winrt: WinRTModules):
         parsed_uuid = uuid.UUID(characteristic_uuid)
-        result = await service.get_characteristics_for_uuid_async(parsed_uuid)
-        if result.status != winrt.gatt_communication_status.SUCCESS or not result.characteristics:
+        # Enumerate the service's full characteristic table with UNCACHED
+        # (the exact-UUID lookup can return an empty/unsuccessful result when
+        # the per-service GATT cache is incomplete) and match on the UUID.
+        result = await service.get_characteristics_with_cache_mode_async(
+            winrt.bluetooth_cache_mode.UNCACHED
+        )
+        if result.status != winrt.gatt_communication_status.SUCCESS:
             raise ConnectionError(f"ATVV characteristic not found: {characteristic_uuid}")
-        return result.characteristics[0]
+        for characteristic in result.characteristics:
+            if str(characteristic.uuid).casefold() == str(parsed_uuid).casefold():
+                return characteristic
+        raise ConnectionError(f"ATVV characteristic not found: {characteristic_uuid}")
 
     async def _write_tx(self, data: bytes) -> None:
         winrt = self._winrt or _import_winrt()

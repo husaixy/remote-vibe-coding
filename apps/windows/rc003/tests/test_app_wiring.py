@@ -480,6 +480,22 @@ class CorruptButtonBindingFailsClosedTests(_AppWiringTestCase):
 
 
 class OrdinaryButtonGestureWiringTests(_AppWiringTestCase):
+    def test_saved_mapping_is_reloaded_before_the_next_button_event(self):
+        updated = config.default_key_bindings()
+        updated["bindings"]["back"] = {"kind": "key_combo", "keys": ["f8"]}
+        config.save_key_bindings(self.app._bindings_path, updated)
+
+        calls = []
+        original = win32_input.send_key_combo_tap
+        win32_input.send_key_combo_tap = lambda keys: calls.append(tuple(keys))
+        try:
+            self.app._on_button_event("back", True)
+            self.app._on_button_event("back", False)
+        finally:
+            win32_input.send_key_combo_tap = original
+
+        self.assertEqual(calls, [("f8",)])
+
     def test_legacy_f5_auto_repeat_is_collapsed_to_one_physical_press(self):
         calls = []
         original = self.app._on_button_event

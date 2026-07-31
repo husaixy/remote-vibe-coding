@@ -1,7 +1,11 @@
 """``python -m ovb_rc003`` (or the packaged ``RemoteMicRC003.exe``,
 built from the standalone ``src/launcher.py`` entry point - see XRBM-021):
 
-- (no args)     run the bridge - guarded by a per-session Windows named-
+- (no args)     open the settings window - the DEFAULT double-click
+                behavior, so a user who runs the exe always sees a window.
+                Never touches BLE/HID/audio or the single-instance guard.
+- ``--settings``  open the settings window (explicit form of the default)
+- ``--bridge``  run the bridge - guarded by a per-session Windows named-
                 mutex (single_instance.py) so a second concurrent launch
                 never starts BLE/HID/audio: it shows a visible notice and
                 exits with a deterministic nonzero code instead of ever
@@ -11,7 +15,6 @@ built from the standalone ``src/launcher.py`` entry point - see XRBM-021):
                 duplicate - the bridge does not start either. A caller
                 that cannot prove it is the only owner of BLE/HID/audio
                 resources must never gamble on being one anyway.
-- ``--settings``  open the settings window
 - ``--dry-run``   import every first-party module and exit 0, touching no
                   GUI, BLE, Raw Input, or audio device - the safe smoke
                   check build-candidate.ps1 and
@@ -46,11 +49,11 @@ built from the standalone ``src/launcher.py`` entry point - see XRBM-021):
                   part of this program's public CLI surface.
 - ``--help``/``-h``  print this usage and exit 0
 
-``--settings``, ``--dry-run``, ``--diagnose-ble-candidates`` and
-``--help``/``-h`` are all checked and dispatched BEFORE the bridge branch
-below is ever reached, so none of them touch the single-instance mutex at
-all (XRBM-021 changed threat model: the guard applies only to the
-no-argument bridge mode).
+``--settings``, ``--bridge``, ``--dry-run``,
+``--diagnose-ble-candidates`` and ``--help``/``-h`` are all checked and
+dispatched BEFORE the bridge branch below is ever reached, so none of them
+touch the single-instance mutex at all (XRBM-021 changed threat model: the
+guard applies only to the ``--bridge`` mode).
 """
 
 from __future__ import annotations
@@ -65,8 +68,9 @@ def _print_help() -> None:
     print("Not yet real-device verified - see this package's README.md 'Known gaps' section.")
     print()
     print("Usage:")
-    print("  python -m ovb_rc003              run the bridge")
+    print("  python -m ovb_rc003               open the settings window (default)")
     print("  python -m ovb_rc003 --settings    open the settings window")
+    print("  python -m ovb_rc003 --bridge      run the bridge")
     print("  python -m ovb_rc003 --dry-run     import every module and exit 0 (CI smoke check)")
     print("  python -m ovb_rc003 --help        show this message and exit 0")
 
@@ -204,13 +208,16 @@ def main() -> None:
 
         flag_index = args.index("--rc003-hid-injector")
         raise SystemExit(frida_compat.injector_main(args[flag_index + 1 :]))
-    if "--settings" in args:
-        from . import settings_ui
-
-        settings_ui.main()
+    if "--bridge" in args:
+        _run_bridge()
         return
 
-    _run_bridge()
+    # Default (no arguments) and explicit --settings both open the settings
+    # window. A user who double-clicks the packaged exe must see a window,
+    # never a headless bridge process with no UI.
+    from . import settings_ui
+
+    settings_ui.main()
 
 
 if __name__ == "__main__":

@@ -386,6 +386,15 @@ class InnoSetupScriptTests(unittest.TestCase):
         self.assertIn("停止 {#AppName}", icons_section)
         self.assertIn("卸载 {#AppName}", icons_section)
 
+    def test_start_shortcut_uses_the_explicit_bridge_flag(self):
+        # The no-argument exe now opens the settings window, so the Start
+        # Menu "启动" entry must request bridge mode explicitly.
+        self.assertIn(
+            'Name: "{group}\\启动 {#AppName}"; Filename: "{app}\\{#AppExeName}"; '
+            'Parameters: "--bridge"',
+            self.text,
+        )
+
     def test_postinstall_run_opens_settings_and_never_the_bare_no_arg_bridge(self):
         run_section = _iss_section(self.text, "Run")
         self.assertIn("postinstall", run_section)
@@ -1234,12 +1243,12 @@ class PortableAndInstallerFlowContractTests(unittest.TestCase):
             r".\RemoteMicRC003.exe --settings", self.text
         )
 
-    def test_portable_start_command_has_no_arguments(self):
-        # The no-argument invocation must appear as its own standalone
-        # command - distinct from the "--settings" command above - paired
-        # with prose that says it starts the bridge itself.
+    def test_portable_start_command_uses_the_explicit_bridge_flag(self):
+        # The no-argument invocation now opens the settings window, so the
+        # bridge must be started explicitly with --bridge - paired with
+        # prose that says it starts the bridge itself.
         self.assertIn(
-            r"`.\RemoteMicRC003.exe` 启动桥接", self.normalized
+            r"`.\RemoteMicRC003.exe --bridge` 启动桥接", self.normalized
         )
 
     def test_portable_stop_is_via_task_manager_not_a_stop_script(self):

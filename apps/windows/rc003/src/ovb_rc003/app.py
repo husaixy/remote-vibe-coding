@@ -101,9 +101,11 @@ class RC003App:
     def __init__(self) -> None:
         self._config_root = config.config_root()
         self._config = config.load_config(config.config_path(self._config_root))
+        self._bindings_path = config.key_bindings_path(self._config_root)
         self._bindings = config.load_key_bindings(
-            config.key_bindings_path(self._config_root)
+            self._bindings_path
         )
+        self._bindings_mtime_ns = self._bindings_file_mtime_ns()
         self._button_gestures = button_gesture.ButtonGestureDispatcher(
             is_action_configured=self._is_button_action_configured,
             is_repeatable=self._is_button_repeatable,
@@ -138,6 +140,10 @@ class RC003App:
         self._hid_report_tap: Optional[frida_compat.RC003HidReportTap] = None
         self._direct_hid_usages: set[int] = set()
         self._direct_hid_lock = threading.Lock()
+        # True once the tap has reported at least one full keyboard snapshot.
+        # While the tap side channel is live, the keyboard Raw Input path
+        # stands down so the same physical edge is not armed/dispatched twice.
+        self._direct_hid_tap_active = False
         self._playback: Optional[audio_playback.EndpointPlaybackSink] = None
         self._voice_pcm_stats = PcmStats()
 
@@ -247,6 +253,7 @@ class RC003App:
             on_key_event=self._on_legacy_key_event,
             on_key_transform=self._transform_legacy_voice_key,
             on_key_emit=self._emit_legacy_voice_key,
+            rc003_vk_codes=frozenset(raw_input_windows.KEYBOARD_VK_TO_BUTTON),
         )
         try:
             self._legacy_key_suppressor.start()
@@ -293,14 +300,22 @@ class RC003App:
                 self._logger.exception("startup: RC003 HID report tap cleanup failed")
 
     def _on_direct_hid_report(self, report_id: int, payload: bytes) -> None:
-        """Translate only the HID usages missing from Windows Raw Input."""
+        """Translate every RC003 keyboard HID usage into button edges.
+
+        The tap observes the full keyboard report on its own socket thread,
+        which the low-level keyboard hook does not block.  Arming the
+        duplicate suppressor from this side channel makes the arming edge
+        arrive inside the hook's wait window (the WM_INPUT arm arrives too
+        late, ~63-72ms after the hook on this device).  The microphone usage
+        is excluded: the physical F5 / ATVV path owns voice.
+        """
 
         if report_id != 1 or len(payload) != 6:
             return
         active = {
             int.from_bytes(payload[index : index + 2], "little")
             for index in range(0, len(payload), 2)
-        } & set(frida_compat.MISSING_USAGE_TO_BUTTON)
+        } & set(frida_compat.TAP_USAGE_TO_BUTTON)
         with self._direct_hid_lock:
             previous = self._direct_hid_usages
             if active == previous:
@@ -308,24 +323,49 @@ class RC003App:
             pressed = active - previous
             released = previous - active
             self._direct_hid_usages = set(active)
+        if active:
+            self._direct_hid_tap_active = True
         for usage in sorted(pressed):
+            button = frida_compat.TAP_USAGE_TO_BUTTON[usage]
+            if button == "mic":
+                continue
             self._logger.info(
                 "RC003 direct HID usage down: 0x%04x -> %s",
                 usage,
-                frida_compat.MISSING_USAGE_TO_BUTTON[usage],
+                button,
             )
-            self._on_button_event(
-                frida_compat.MISSING_USAGE_TO_BUTTON[usage], True
-            )
+            self._arm_from_direct_usage(usage, True)
+            self._on_button_event(button, True)
         for usage in sorted(released):
+            button = frida_compat.TAP_USAGE_TO_BUTTON[usage]
+            if button == "mic":
+                continue
             self._logger.info(
                 "RC003 direct HID usage up: 0x%04x -> %s",
                 usage,
-                frida_compat.MISSING_USAGE_TO_BUTTON[usage],
+                button,
             )
-            self._on_button_event(
-                frida_compat.MISSING_USAGE_TO_BUTTON[usage], False
-            )
+            self._arm_from_direct_usage(usage, False)
+            self._on_button_event(button, False)
+
+    def _arm_from_direct_usage(self, usage: int, is_pressed: bool) -> None:
+        """Arm the exact physical edge seen by the tap's socket thread.
+
+        Uses the same vk/scan/extended values the low-level hook observes for
+        that physical key, so ``consume_armed_key_event`` matches regardless
+        of whether the arm arrived from Raw Input or from the tap.
+        """
+
+        suppressor = self._legacy_key_suppressor
+        if suppressor is None:
+            return
+        key = frida_compat.TAP_USAGE_TO_KEY.get(usage)
+        if key is None:
+            return
+        vk_code, make_code, extended = key
+        if vk_code == 0x74:
+            return
+        suppressor.arm_key_event(vk_code, make_code, extended, is_pressed)
 
 
     async def _cleanup_once(self) -> None:
@@ -352,6 +392,7 @@ class RC003App:
                 failures.append("RC003 HID report tap did not stop; owner retained")
         with self._direct_hid_lock:
             self._direct_hid_usages.clear()
+        self._direct_hid_tap_active = False
 
         # Cancel gesture timers before stopping Raw Input. The listener's
         # forced releases then clear the dispatcher state without a late
@@ -507,7 +548,12 @@ class RC003App:
         if vk_code != 0x74 or not self._legacy_voice_transform_enabled():
             return None
         if is_pressed:
-            if self._voice.active or self._voice_raw_input_trigger_pending:
+            if (
+                self._voice.active
+                or self._voice_raw_input_trigger_pending
+                or self._voice_legacy_transform_key_down
+                or self._legacy_f5_is_down
+            ):
                 return None
             self._voice_legacy_transform_key_down = True
         elif not self._voice_legacy_transform_key_down:
@@ -580,6 +626,12 @@ class RC003App:
             or event.make_code is None
         ):
             return
+        # While the Frida tap side channel is reporting full keyboard
+        # snapshots, it already arms and dispatches every ordinary button on
+        # its own socket thread.  Stand the Raw Input path down so one
+        # physical edge is not armed and dispatched twice.
+        if self._direct_hid_tap_active:
+            return
         # Only arm a physical edge when this RC003 button has at least one
         # configured ordinary gesture.  Unknown usages and deliberately
         # unbound controls must remain ordinary Windows input instead of
@@ -600,9 +652,32 @@ class RC003App:
 
     # -- HID button events --------------------------------------------------
 
+    def _bindings_file_mtime_ns(self) -> int:
+        try:
+            return self._bindings_path.stat().st_mtime_ns
+        except OSError:
+            return -1
+
+    def _reload_bindings_if_changed(self) -> None:
+        """Apply settings edits without requiring a bridge restart."""
+
+        current_mtime_ns = self._bindings_file_mtime_ns()
+        if current_mtime_ns == self._bindings_mtime_ns:
+            return
+        try:
+            refreshed = config.load_key_bindings(self._bindings_path)
+        except Exception as exc:  # noqa: BLE001 - keep the last valid mapping
+            self._logger.warning("settings reload skipped: %s", exc)
+            self._bindings_mtime_ns = current_mtime_ns
+            return
+        self._bindings = refreshed
+        self._bindings_mtime_ns = current_mtime_ns
+        self._logger.info("settings mappings reloaded from disk")
+
     def _on_button_event(
         self, button_id: str, is_pressed: bool, *, host_action_handled: bool = False
     ) -> None:
+        self._reload_bindings_if_changed()
         if button_id == "mic":
             if not is_pressed:
                 return
@@ -677,6 +752,7 @@ class RC003App:
     def _on_button_trigger(
         self, button_id: str, trigger: button_gesture.ButtonTrigger
     ) -> None:
+        self._reload_bindings_if_changed()
         action = key_mapping.button_action_for(
             self._bindings,
             button_id,

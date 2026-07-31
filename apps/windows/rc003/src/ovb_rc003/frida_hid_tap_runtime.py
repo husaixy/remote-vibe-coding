@@ -16,6 +16,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import threading
 
 try:
@@ -254,6 +255,9 @@ def _lock_runtime_acl(path: Path) -> None:
             "/C",
             "/Q",
         ]
+        creationflags = 0
+        if sys.platform == "win32":
+            creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
         completed = subprocess.run(
             command,
             stdout=subprocess.PIPE,
@@ -262,6 +266,7 @@ def _lock_runtime_acl(path: Path) -> None:
             encoding="utf-8",
             errors="replace",
             check=False,
+            creationflags=creationflags,
         )
         if completed.returncode != 0:
             raise OSError(

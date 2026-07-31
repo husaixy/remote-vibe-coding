@@ -179,6 +179,29 @@ class SaveConfigPrivacyGuardTests(unittest.TestCase):
 
 
 class RoundTripTests(unittest.TestCase):
+    def test_save_config_replaces_an_existing_file_atomically(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "config.json"
+            path.write_text('{"old": true}\n', encoding="utf-8")
+            updated = config.default_config()
+            updated["gain_db"] = 4.0
+
+            config.save_config(path, updated)
+
+            self.assertEqual(config.load_config(path)["gain_db"], 4.0)
+            self.assertEqual(list(path.parent.glob(".config.json.*.tmp")), [])
+
+    def test_failed_atomic_replace_does_not_leave_a_temporary_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "config.json"
+            path.write_text('{"old": true}\n', encoding="utf-8")
+            with mock.patch.object(config.os, "replace", side_effect=OSError("locked")):
+                with self.assertRaisesRegex(OSError, "locked"):
+                    config.save_config(path, config.default_config())
+
+            self.assertEqual(path.read_text(encoding="utf-8"), '{"old": true}\n')
+            self.assertEqual(list(path.parent.glob(".config.json.*.tmp")), [])
+
     def test_save_and_load_round_trip(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "config.json"

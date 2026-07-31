@@ -15,6 +15,7 @@ keybd_event fallback and is never accepted for unrelated injected input.
 from __future__ import annotations
 
 import ctypes
+import logging
 import sys
 import threading
 import time
@@ -47,6 +48,9 @@ def _require_windows() -> None:
         raise LegacyKeySuppressorUnavailableError(
             "legacy key suppression is only available on Windows"
         )
+
+
+_logger = logging.getLogger(__name__)
 
 
 class KBDLLHOOKSTRUCT(ctypes.Structure):
@@ -108,6 +112,9 @@ class LegacyKeySuppressor:
             Callable[[int, bool], Optional[PhysicalKeyTarget]]
         ] = None,
         on_key_emit: Optional[Callable[[PhysicalKeyTarget, bool], bool]] = None,
+        *,
+        rc003_vk_codes: Optional[FrozenSet[int]] = None,
+        consume_wait_seconds: float = 0.060,
     ) -> None:
         self._suppress_vk_codes: FrozenSet[int] = frozenset(int(vk) for vk in suppress_vk_codes)
         self._on_key_event = on_key_event
@@ -116,8 +123,27 @@ class LegacyKeySuppressor:
         # real Win32 input edge. Returning False keeps the original event
         # swallowed while allowing the application to use its fallback path.
         self._on_key_emit = on_key_emit
+        # The RC003 keyboard surface is a small, known set of VK codes. The
+        # low-level hook only ever needs to wait for an arming Raw Input edge
+        # for those codes; every other keyboard (and any other key) must pass
+        # through with no latency, exactly like the upstream special-key hook.
+        self._rc003_vk_codes: Optional[FrozenSet[int]] = (
+            None if rc003_vk_codes is None else frozenset(int(vk) for vk in rc003_vk_codes)
+        )
+        # The hook callback runs synchronously ahead of the Raw Input message
+        # loop for the same physical press, so the arming edge can land up to
+        # a few tens of milliseconds later (measured ~17ms on the RC003). The
+        # upstream reference uses 0.06s for its correlated back/volume edges;
+        # use the same conservative window for the RC003 key set.
+        self._consume_wait_seconds = max(0.0, float(consume_wait_seconds))
         self._armed_events: List[_ArmedKeyEvent] = []
         self._armed_events_lock = threading.Lock()
+        # Raw Input and the low-level hook run on different threads, so
+        # ``arm_key_event`` (Raw Input thread) and ``consume_armed_key_event``
+        # (hook thread) race for the same physical press. The consumer waits
+        # briefly on this condition for the arming edge when it is not there
+        # yet, instead of releasing the original key as a double action.
+        self._armed_events_changed = threading.Condition(self._armed_events_lock)
         self._thread: Optional[threading.Thread] = None
         self._ready_event = threading.Event()
         self._stop_event = threading.Event()
@@ -209,31 +235,93 @@ class LegacyKeySuppressor:
             self._armed_events.append(armed)
             if len(self._armed_events) > 64:
                 self._armed_events = self._armed_events[-64:]
+            self._armed_events_changed.notify_all()
+        _logger.info(
+            "arm key edge: vk=0x%X scan=0x%X ext=%s pressed=%s window=%.3fs thread=%s",
+            int(vk_code),
+            int(scan_code),
+            bool(extended),
+            bool(is_pressed),
+            float(lifetime_seconds),
+            threading.current_thread().name,
+        )
 
     def consume_armed_key_event(
-        self, vk_code: int, scan_code: int, extended: bool, is_pressed: bool
+        self,
+        vk_code: int,
+        scan_code: int,
+        extended: bool,
+        is_pressed: bool,
+        *,
+        wait_seconds: Optional[float] = None,
     ) -> bool:
-        """Consume one matching pending physical keyboard edge."""
+        """Consume one matching pending physical keyboard edge.
 
+        The low-level hook fires before the Raw Input ``WM_INPUT`` for the
+        same physical press, on a different thread, so the arming edge from
+        ``arm_key_event`` is normally not there yet when the hook runs. Wait
+        a short window for it (upstream correlates the same way) so a quick
+        remote press is not turned into a double action by the hook releasing
+        the original key before the app's replacement edge arrives. The
+        window only applies to the RC003 key set; every other key passes
+        through with no latency.
+        """
+
+        if self._rc003_vk_codes is not None and int(vk_code) not in self._rc003_vk_codes:
+            return False
+        effective_wait = (
+            self._consume_wait_seconds if wait_seconds is None else max(0.0, float(wait_seconds))
+        )
         with self._armed_events_lock:
-            now = time.monotonic()
-            kept: List[_ArmedKeyEvent] = []
-            matched = False
-            for event in self._armed_events:
-                if (
-                    not matched
-                    and event.expires_at > now
-                    and event.vk_code == int(vk_code)
-                    and event.scan_code == int(scan_code)
-                    and event.extended == bool(extended)
-                    and event.is_pressed == bool(is_pressed)
-                ):
-                    matched = True
-                    continue
-                if event.expires_at > now:
-                    kept.append(event)
-            self._armed_events = kept
-            return matched
+            deadline = time.monotonic() + effective_wait
+            while True:
+                now = time.monotonic()
+                matched = self._consume_armed_key_event_locked(
+                    vk_code, scan_code, extended, is_pressed, now
+                )
+                if matched or now >= deadline:
+                    elapsed = now - deadline + effective_wait
+                    _logger.info(
+                        "consume key edge: vk=0x%X scan=0x%X ext=%s pressed=%s "
+                        "matched=%s armed=%d waited=%.3fs thread=%s",
+                        int(vk_code),
+                        int(scan_code),
+                        bool(extended),
+                        bool(is_pressed),
+                        bool(matched),
+                        len(self._armed_events),
+                        elapsed,
+                        threading.current_thread().name,
+                    )
+                    return matched
+                remaining = deadline - now
+                self._armed_events_changed.wait(remaining)
+
+    def _consume_armed_key_event_locked(
+        self,
+        vk_code: int,
+        scan_code: int,
+        extended: bool,
+        is_pressed: bool,
+        now: float,
+    ) -> bool:
+        kept: List[_ArmedKeyEvent] = []
+        matched = False
+        for event in self._armed_events:
+            if (
+                not matched
+                and event.expires_at > now
+                and event.vk_code == int(vk_code)
+                and event.scan_code == int(scan_code)
+                and event.extended == bool(extended)
+                and event.is_pressed == bool(is_pressed)
+            ):
+                matched = True
+                continue
+            if event.expires_at > now:
+                kept.append(event)
+        self._armed_events = kept
+        return matched
 
     def _forward_transformed_key_event(
         self,

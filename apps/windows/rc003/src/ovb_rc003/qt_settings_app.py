@@ -898,12 +898,24 @@ def _load_qt_classes() -> dict:
                 self._set_error_message(f"{title}：{exc.message}")
                 return False
 
-            self._config = new_config
-            self._bindings = new_bindings
-            config.save_config(config.config_path(self._config_root), self._config)
-            config.save_key_bindings(
-                config.key_bindings_path(self._config_root), self._bindings
-            )
+            config_path = config.config_path(self._config_root)
+            bindings_path = config.key_bindings_path(self._config_root)
+            try:
+                config.save_config(config_path, new_config)
+                config.save_key_bindings(bindings_path, new_bindings)
+                # Read the files back through the same normalizers the bridge
+                # uses. This prevents the UI from claiming success when the
+                # file was not actually writable or the persisted shape was
+                # not usable by the runtime.
+                saved_config = config.load_config(config_path)
+                saved_bindings = config.load_key_bindings(bindings_path)
+            except Exception as exc:  # noqa: BLE001 - a Qt slot must not escape
+                self._set_error_message(f"保存失败：{exc}")
+                return False
+
+            self._config = saved_config
+            self._bindings = saved_bindings
+            self._load_bindings_into_model()
             self._set_error_message("")
             if self._selected_device_id() == device_catalog.DJI_MIC_2_ID:
                 self._set_status_message(

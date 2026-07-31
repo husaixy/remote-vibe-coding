@@ -60,6 +60,11 @@ class FakeBluetoothConnectionStatus:
     CONNECTED = 1
 
 
+class FakeBluetoothCacheMode:
+    CACHED = 0
+    UNCACHED = 1
+
+
 class FakeGattWriteResult:
     def __init__(self, status: int) -> None:
         self.status = status
@@ -174,6 +179,13 @@ class FakeGattDeviceService:
             return FakeGattCharacteristicsResult(FakeGattCommunicationStatus.SUCCESS, [])
         return FakeGattCharacteristicsResult(FakeGattCommunicationStatus.SUCCESS, [match])
 
+    async def get_characteristics_with_cache_mode_async(
+        self, cache_mode
+    ) -> FakeGattCharacteristicsResult:
+        return FakeGattCharacteristicsResult(
+            FakeGattCommunicationStatus.SUCCESS, list(self._characteristics.values())
+        )
+
     def close(self) -> None:
         self.closed = True
 
@@ -219,6 +231,11 @@ class FakeBluetoothLEDevice:
             f"get_gatt_services_for_uuid_async requires a uuid.UUID, got {type(service_uuid)!r}"
         )
         return FakeGattServicesResult(FakeGattCommunicationStatus.SUCCESS, [self._service])
+
+    async def get_gatt_services_for_uuid_with_cache_mode_async(
+        self, service_uuid: uuid.UUID, cache_mode
+    ) -> FakeGattServicesResult:
+        return await self.get_gatt_services_for_uuid_async(service_uuid)
 
     def close(self) -> None:
         self.closed = True
@@ -320,4 +337,5 @@ class FakeWinRTEnvironment:
             cccd_value=FakeGattClientCharacteristicConfigurationDescriptorValue,
             device_information=self._device_information_cls,
             data_writer_factory=FakeDataWriter,
+            bluetooth_cache_mode=FakeBluetoothCacheMode,
         )

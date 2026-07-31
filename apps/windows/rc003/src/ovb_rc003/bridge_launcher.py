@@ -1,7 +1,7 @@
-"""Launches the no-argument bridge process from the settings window
-(XRBM-029), and reports what actually happened - not just "a process was
-created". This module never conflates a launched/still-running process with
-"RC003 is connected": that fact is only observable from ``app.log`` (see
+"""Launches the bridge process from the settings window (XRBM-029), and
+reports what actually happened - not just "a process was created". This
+module never conflates a launched/still-running process with "RC003 is
+connected": that fact is only observable from ``app.log`` (see
 ``logging_setup.py``), never from process liveness alone.
 
 Command construction (``build_launch_command``) covers exactly the two ways
@@ -10,21 +10,22 @@ future third mode cannot silently fall through unnoticed:
 
 - **Frozen** (the packaged ``RemoteMicRC003.exe``, built from
   ``src/launcher.py`` - see that module's docstring): ``sys.executable`` IS
-  that same exe, and running it again with NO arguments re-enters
-  ``__main__.main()``'s no-argument bridge branch (``_run_bridge()``) -
+  that same exe, and running it again with ``--bridge`` enters
+  ``__main__.main()``'s ``_run_bridge()`` branch. The no-argument form now
+  opens the settings window, so the bridge is always launched EXPLICITLY -
   never ``--settings``, which would just open a second settings window
   instead of starting the bridge.
-- **Source** (``python -m ovb_rc003 --settings``): ``sys.executable`` is the
-  interpreter itself; ``[sys.executable, "-m", "ovb_rc003"]`` re-enters the
-  same no-argument branch. This relies on the child inheriting the parent
-  process's environment (``subprocess.Popen`` does this by default) - in
-  particular ``PYTHONPATH=src``, which the settings window's own process
+- **Source** (``python -m ovb_rc003``): ``sys.executable`` is the
+  interpreter itself; ``[sys.executable, "-m", "ovb_rc003", "--bridge"]``
+  enters the same bridge branch. This relies on the child inheriting the
+  parent process's environment (``subprocess.Popen`` does this by default) -
+  in particular ``PYTHONPATH=src``, which the settings window's own process
   needed to have been started with in order to import ``ovb_rc003`` at all
   (see the root README's "Running from source" section).
 
-Both branches deliberately never append ``--settings``: that argument would
-recursively open another settings window instead of starting the bridge
-(In-scope item 2's "不得递归打开 --settings").
+Both branches deliberately append ``--bridge`` and never ``--settings``:
+that argument would recursively open another settings window instead of
+starting the bridge (In-scope item 2's "不得递归打开 --settings").
 
 Launch-outcome detection (``launch_bridge``) distinguishes four states by
 polling the child for a short grace period rather than assuming
@@ -64,7 +65,7 @@ import sys
 import time
 from dataclasses import dataclass
 from enum import Enum
-from typing import Callable, List, Optional, Sequence, Tuple
+from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 from . import single_instance
 
@@ -88,10 +89,12 @@ def build_launch_command(
     frozen: Optional[bool] = None,
     executable: Optional[str] = None,
 ) -> List[str]:
-    """Builds the no-argument bridge launch command for the CURRENT process
-    shape. ``frozen``/``executable`` are injectable so tests can exercise
-    both branches deterministically on any OS - production callers should
-    never pass them.
+    """Builds the bridge launch command for the CURRENT process shape.
+    Always appends ``--bridge``: the no-argument form of this exe now opens
+    the settings window, so the bridge must be requested explicitly.
+    ``frozen``/``executable`` are injectable so tests can exercise both
+    branches deterministically on any OS - production callers should never
+    pass them.
     """
 
     if frozen is None:
@@ -105,10 +108,12 @@ def build_launch_command(
         )
 
     if frozen:
-        # The frozen exe itself, no arguments - see module docstring.
-        return [executable]
-    # The current interpreter, `-m ovb_rc003`, no further arguments.
-    return [executable, "-m", "ovb_rc003"]
+        # The same frozen exe handles both modes: with no arguments (or
+        # --settings) it opens the settings window, and with --bridge (as
+        # launched here) it starts the bridge - see __main__.py's dispatch.
+        return [executable, "--bridge"]
+    # The current interpreter, `-m ovb_rc003 --bridge`.
+    return [executable, "-m", "ovb_rc003", "--bridge"]
 
 
 class LaunchOutcome(Enum):
@@ -134,6 +139,7 @@ def launch_bridge(
     poll_interval_seconds: float = DEFAULT_POLL_INTERVAL_SECONDS,
     _popen: Callable[..., "subprocess.Popen"] = subprocess.Popen,
     _sleep: Callable[[float], None] = time.sleep,
+    _popen_kwargs: Optional[Dict[str, object]] = None,
 ) -> LaunchResult:
     """Starts the bridge and watches it for a short grace period to tell a
     process that is actually running apart from one that merely got created
@@ -147,8 +153,18 @@ def launch_bridge(
         tuple(command) if command is not None else tuple(build_launch_command())
     )
 
+    popen_kwargs = dict(_popen_kwargs) if _popen_kwargs is not None else {}
+    if _popen is subprocess.Popen and sys.platform == "win32":
+        # A bridge subprocess is a console subsystem program (python.exe in a
+        # source checkout) or a frozen ``console=False`` exe; without this
+        # flag Windows flashes a black console window for the child even when
+        # the parent is a GUI app. CREATE_NO_WINDOW only exists on Windows.
+        popen_kwargs.setdefault(
+            "creationflags", getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        )
+
     try:
-        process = _popen(list(resolved_command))
+        process = _popen(list(resolved_command), **popen_kwargs)
     except OSError as exc:
         return LaunchResult(
             outcome=LaunchOutcome.LAUNCH_FAILED,

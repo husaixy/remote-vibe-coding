@@ -445,6 +445,15 @@ class SettingsControllerTests(unittest.TestCase):
         self.assertEqual(controller.errorMessage, "")
         self.assertIn("已保存", controller.statusMessage)
 
+    def test_save_settings_reports_a_persistence_failure(self):
+        controller, _ = self._make_controller()
+        with mock.patch.object(
+            config, "save_key_bindings", side_effect=OSError("settings file is locked")
+        ):
+            self.assertFalse(controller.saveSettings())
+        self.assertIn("保存失败", controller.errorMessage)
+        self.assertIn("settings file is locked", controller.errorMessage)
+
     def test_save_settings_with_empty_hotkey_fails_and_reports_error(self):
         controller, _ = self._make_controller()
         controller.hotkeyText = ""

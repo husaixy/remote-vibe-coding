@@ -1,4 +1,5 @@
 import threading
+import time
 import unittest
 
 from ovb_rc003 import legacy_key_suppressor_windows as suppressor
@@ -94,6 +95,78 @@ class LegacyKeySuppressorDecisionTests(unittest.TestCase):
         gate = suppressor.LegacyKeySuppressor({0x74})
         gate.arm_key_event(0x74, 0x3F, False, True)
         self.assertFalse(gate.consume_armed_key_event(0x74, 0x3F, False, True))
+
+
+class LegacyKeySuppressorRaceTests(unittest.TestCase):
+    """The low-level hook and the Raw Input thread race for the same physical
+    press. The consumer must wait briefly for an arming edge that is in
+    flight, without blocking ordinary keyboard input."""
+
+    def test_consume_waits_for_an_arm_that_arrives_right_afterward(self):
+        gate = suppressor.LegacyKeySuppressor({0x74})
+        # The hook fires before the Raw Input thread delivers the same
+        # physical press, so the arming edge lands a moment later. The
+        # consumer must wait for it instead of releasing a double action.
+        def raw_input_thread():
+            import time
+
+            time.sleep(0.01)
+            gate.arm_key_event(0x26, 0x48, True, True)
+
+        thread = threading.Thread(target=raw_input_thread)
+        thread.start()
+        try:
+            matched = gate.consume_armed_key_event(
+                0x26, 0x48, True, True, wait_seconds=0.200
+            )
+        finally:
+            thread.join(timeout=2)
+        self.assertTrue(matched)
+        # The edge is consumed exactly once.
+        self.assertFalse(gate.consume_armed_key_event(0x26, 0x48, True, True))
+
+    def test_no_recent_arm_returns_immediately_without_blocking(self):
+        gate = suppressor.LegacyKeySuppressor({0x74})
+        # No RC003 press has been armed recently; the hook must pass an
+        # unrelated physical key straight through after the short wait.
+        self.assertFalse(gate.consume_armed_key_event(0x26, 0x48, True, True))
+
+    def test_unrelated_key_does_not_wait_for_a_pending_arm(self):
+        gate = suppressor.LegacyKeySuppressor({0x74})
+        gate.arm_key_event(0x26, 0x48, True, True)
+        # A different key passing through the hook must not be blocked or
+        # consumed just because some RC003 edge is armed.
+        self.assertFalse(gate.consume_armed_key_event(0x27, 0x49, True, True))
+
+    def test_key_outside_rc003_set_passes_through_immediately(self):
+        gate = suppressor.LegacyKeySuppressor(
+            {0x74},
+            rc003_vk_codes=frozenset({0x74, 0x26, 0x27, 0x25, 0x28}),
+            consume_wait_seconds=10.0,
+        )
+        # Ordinary keyboard letters are not part of the RC003 surface, so the
+        # hook must not wait (or block) for an arming edge at all.
+        start = time.monotonic()
+        self.assertFalse(gate.consume_armed_key_event(0x4E, 0x31, False, True))
+        self.assertLess(time.monotonic() - start, 0.25)
+
+    def test_rc003_key_waits_for_a_late_arming_edge_by_default(self):
+        gate = suppressor.LegacyKeySuppressor(
+            {0x74},
+            rc003_vk_codes=frozenset({0x74, 0x26, 0x27, 0x25, 0x28}),
+        )
+
+        def raw_input_thread():
+            time.sleep(0.03)
+            gate.arm_key_event(0x26, 0x48, True, True)
+
+        thread = threading.Thread(target=raw_input_thread)
+        thread.start()
+        try:
+            matched = gate.consume_armed_key_event(0x26, 0x48, True, True)
+        finally:
+            thread.join(timeout=2)
+        self.assertTrue(matched)
 
 
 class LegacyKeySuppressorLifecycleTests(unittest.TestCase):

@@ -11,11 +11,11 @@ from ovb_rc003 import bridge_launcher, single_instance
 
 
 class BuildLaunchCommandTests(unittest.TestCase):
-    def test_frozen_uses_the_current_executable_with_no_arguments(self):
+    def test_frozen_uses_the_current_executable_with_bridge_flag(self):
         command = bridge_launcher.build_launch_command(
             frozen=True, executable=r"C:\Apps\RemoteMicRC003.exe"
         )
-        self.assertEqual(command, [r"C:\Apps\RemoteMicRC003.exe"])
+        self.assertEqual(command, [r"C:\Apps\RemoteMicRC003.exe", "--bridge"])
 
     def test_frozen_command_never_recurses_into_settings(self):
         command = bridge_launcher.build_launch_command(
@@ -23,11 +23,22 @@ class BuildLaunchCommandTests(unittest.TestCase):
         )
         self.assertNotIn("--settings", command)
 
-    def test_source_uses_the_current_interpreter_with_module_flag(self):
+    def test_frozen_settings_mode_still_launches_the_same_executable_with_bridge(self):
+        # The single packaged exe handles both modes: no arguments / --settings
+        # open the settings window, --bridge starts the bridge. There is no
+        # separate settings sibling anymore.
+        command = bridge_launcher.build_launch_command(
+            frozen=True, executable=r"C:\Apps\RemoteMicRC003.exe"
+        )
+        self.assertEqual(command, [r"C:\Apps\RemoteMicRC003.exe", "--bridge"])
+
+    def test_source_uses_the_current_interpreter_with_module_flag_and_bridge(self):
         command = bridge_launcher.build_launch_command(
             frozen=False, executable=r"C:\Python312\python.exe"
         )
-        self.assertEqual(command, [r"C:\Python312\python.exe", "-m", "ovb_rc003"])
+        self.assertEqual(
+            command, [r"C:\Python312\python.exe", "-m", "ovb_rc003", "--bridge"]
+        )
 
     def test_source_command_never_recurses_into_settings(self):
         command = bridge_launcher.build_launch_command(

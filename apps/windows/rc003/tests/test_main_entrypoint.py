@@ -75,7 +75,7 @@ class BridgeModeRoutingTests(_ArgvRestoringTestCase):
         single_instance.show_bridge_startup_blocked_notice = (
             lambda message, **kwargs: notice_calls.append((message, kwargs))
         )
-        sys.argv = ["ovb_rc003"]
+        sys.argv = ["ovb_rc003", "--bridge"]
 
         main_module.main()
 
@@ -83,11 +83,11 @@ class BridgeModeRoutingTests(_ArgvRestoringTestCase):
         self.assertIn("DJI Mic 2", notice_calls[0][0])
         self.assertEqual(notice_calls[0][1]["title"], "Remote Mic")
 
-    def test_no_args_calls_app_main_exactly_once_on_first_owner(self):
+    def test_bridge_flag_calls_app_main_exactly_once_on_first_owner(self):
         app_main_calls = []
         app.main = lambda: app_main_calls.append(1)
         single_instance.BridgeInstanceGuard = _make_guard_class()
-        sys.argv = ["ovb_rc003"]
+        sys.argv = ["ovb_rc003", "--bridge"]
 
         main_module.main()  # must not raise
 
@@ -99,7 +99,7 @@ class BridgeModeRoutingTests(_ArgvRestoringTestCase):
         single_instance.BridgeInstanceGuard = _make_guard_class(
             raise_on_enter=single_instance.DuplicateInstanceError("already running")
         )
-        sys.argv = ["ovb_rc003"]
+        sys.argv = ["ovb_rc003", "--bridge"]
 
         with self.assertRaises(SystemExit) as ctx:
             main_module.main()
@@ -136,7 +136,7 @@ class BridgeModeRoutingTests(_ArgvRestoringTestCase):
         single_instance.BridgeInstanceGuard = _make_guard_class(
             raise_on_enter=single_instance.DuplicateInstanceError("already running")
         )
-        sys.argv = ["ovb_rc003"]
+        sys.argv = ["ovb_rc003", "--bridge"]
 
         with self.assertRaises(SystemExit):
             main_module.main()
@@ -150,7 +150,7 @@ class BridgeModeRoutingTests(_ArgvRestoringTestCase):
         )
         notice_calls = []
         single_instance.show_bridge_startup_blocked_notice = lambda msg: notice_calls.append(msg)
-        sys.argv = ["ovb_rc003"]
+        sys.argv = ["ovb_rc003", "--bridge"]
 
         with self.assertRaises(SystemExit):
             main_module.main()
@@ -170,7 +170,7 @@ class BridgeModeRoutingTests(_ArgvRestoringTestCase):
         )
         notice_calls = []
         single_instance.show_bridge_startup_blocked_notice = lambda msg: notice_calls.append(msg)
-        sys.argv = ["ovb_rc003"]
+        sys.argv = ["ovb_rc003", "--bridge"]
 
         with self.assertRaises(SystemExit) as ctx:
             main_module.main()
@@ -205,7 +205,7 @@ class BridgeModeRoutingTests(_ArgvRestoringTestCase):
         single_instance.BridgeInstanceGuard = lambda: _CleanupFailingGuard()
         notice_calls = []
         single_instance.show_bridge_startup_blocked_notice = lambda msg: notice_calls.append(msg)
-        sys.argv = ["ovb_rc003"]
+        sys.argv = ["ovb_rc003", "--bridge"]
 
         with self.assertRaises(SystemExit) as ctx:
             main_module.main()
@@ -224,10 +224,28 @@ class BridgeModeRoutingTests(_ArgvRestoringTestCase):
 
 
 class ArgumentModeBypassTests(_ArgvRestoringTestCase):
-    """XRBM-021 In-scope item 3: --settings/--dry-run/--help must bypass
-    the single-instance guard entirely - none of them may even construct
+    """XRBM-021 In-scope item 3: the no-argument default,
+    --settings/--dry-run/--help/--bridge must bypass the single-instance
+    guard for everything except --bridge - none of them may even construct
     it, let alone touch the mutex.
     """
+
+    def test_no_arguments_opens_settings_and_never_touches_the_guard(self):
+        from ovb_rc003 import settings_ui
+
+        enter_calls = []
+        single_instance.BridgeInstanceGuard = _make_guard_class(enter_calls=enter_calls)
+        app.main = lambda: self.fail("no-argument launch must never start the bridge")
+        original_settings_main = settings_ui.main
+        settings_ui.main = lambda: None
+        sys.argv = ["ovb_rc003"]
+
+        try:
+            main_module.main()  # returns normally, no SystemExit
+        finally:
+            settings_ui.main = original_settings_main
+
+        self.assertEqual(enter_calls, [])
 
     def test_dry_run_never_touches_the_guard(self):
         enter_calls = []

@@ -24,6 +24,7 @@ import time
 from typing import Callable
 
 from . import frida_hid_tap_runtime
+from .device_profile import BUTTON_USAGE_IDS
 from .frida_hid_tap_injector import inject_current_process
 
 
@@ -56,6 +57,36 @@ MISSING_USAGE_TO_BUTTON = {
     BACK_USAGE: "back",
     VOLUME_UP_USAGE: "volume_up",
     VOLUME_DOWN_USAGE: "volume_down",
+}
+
+# The tap observes the full 6-byte keyboard report (three little-endian 16-bit
+# usages), not just the three usages Windows' keyboard class drops.  Reporting
+# every known RC003 keyboard usage lets the application arm its duplicate
+# suppressor from the tap's socket thread - a side channel the low-level hook
+# does not block, unlike the WM_INPUT arm that arrives too late (measured
+# ~63-72ms after the hook on the RC003).
+TAP_USAGE_TO_BUTTON = dict(MISSING_USAGE_TO_BUTTON)
+for _usage, _button in BUTTON_USAGE_IDS.items():
+    TAP_USAGE_TO_BUTTON.setdefault(_usage, _button)
+
+# usage -> (VK, make code, extended) matching what Windows' keyboard class
+# reports for the same physical key, so the hook's consume() sees identical
+# vk/scan/extended values whether the arm came from Raw Input or from the tap.
+TAP_USAGE_TO_KEY = {
+    0x0028: (0x0D, 0x1C, False),  # ok / Enter
+    0x0035: (0xC0, 0x29, False),  # tv / grave accent
+    0x003E: (0x74, 0x3F, False),  # mic / F5 (voice path, never armed)
+    0x004A: (0x24, 0x47, True),  # home
+    0x004F: (0x27, 0x4D, True),  # right
+    0x0050: (0x25, 0x4B, True),  # left
+    0x0051: (0x28, 0x50, True),  # down
+    0x0052: (0x26, 0x48, True),  # up
+    0x0065: (0x5D, 0x5D, True),  # menu / App key
+    0x0066: (0xFF, 0x5E, True),  # power (untranslated VK)
+    0x007F: (0xAD, 0x20, True),  # volume_mute
+    0x0080: (0xAF, 0x30, True),  # volume_up
+    0x0081: (0xAE, 0x2E, True),  # volume_down
+    0x00F1: (0xFF, 0x6A, True),  # back (untranslated VK)
 }
 
 
@@ -143,7 +174,7 @@ class RC003HidReportTap:
         payload = decode_rc003_ioctl_output(data)
         if payload is None:
             return
-        active = payload_usages(payload) & set(MISSING_USAGE_TO_BUTTON)
+        active = payload_usages(payload) & set(TAP_USAGE_TO_BUTTON)
         with self._state_lock:
             previous = self.active_usages
             if active == previous:
@@ -156,10 +187,10 @@ class RC003HidReportTap:
         )
         self.report_handler(1, (filtered + b"\x00" * 6)[:6])
         changes = [
-            f"{MISSING_USAGE_TO_BUTTON[value]}=down" for value in sorted(pressed)
+            f"{TAP_USAGE_TO_BUTTON[value]}=down" for value in sorted(pressed)
         ]
         changes.extend(
-            f"{MISSING_USAGE_TO_BUTTON[value]}=up" for value in sorted(released)
+            f"{TAP_USAGE_TO_BUTTON[value]}=up" for value in sorted(released)
         )
         print(
             f"RC003 HID TAP {' '.join(changes)} raw={data.hex()}",

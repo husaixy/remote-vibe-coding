@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Union
 
@@ -139,10 +140,7 @@ def save_config(path: Path, config: Dict[str, Any]) -> None:
     _assert_no_forbidden_keys(config)
     persisted = dict(config)
     _normalize_voice_hotkey(persisted)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as handle:
-        json.dump(persisted, handle, indent=2, sort_keys=True)
-        handle.write("\n")
+    _save_json_atomic(path, persisted)
 
 
 def _normalize_voice_hotkey(config: Dict[str, Any]) -> None:
@@ -345,7 +343,26 @@ def _normalize_physical_bindings(bindings: Dict[str, Any]) -> None:
 
 def save_key_bindings(path: Path, bindings: Dict[str, Any]) -> None:
     _assert_no_forbidden_keys(bindings)
+    _save_json_atomic(path, bindings)
+
+
+def _save_json_atomic(path: Path, data: Dict[str, Any]) -> None:
+    """Write one settings file without exposing a half-written JSON file."""
+
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as handle:
-        json.dump(bindings, handle, indent=2, sort_keys=True)
-        handle.write("\n")
+    file_descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent)
+    )
+    try:
+        with os.fdopen(file_descriptor, "w", encoding="utf-8", newline="\n") as handle:
+            json.dump(data, handle, indent=2, sort_keys=True)
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary_name, path)
+    except Exception:
+        try:
+            os.unlink(temporary_name)
+        except OSError:
+            pass
+        raise
