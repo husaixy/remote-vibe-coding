@@ -450,10 +450,15 @@ Frida Gadget 实现；Frida 的版本、哈希和许可证见仓库根目录
 
 ## 发布说明
 
-Windows 候选版以预发行版发布。首个发布：
+Windows 版本以正式版发布。首个正式发布：
 
 - 发布列表页：<https://github.com/miaomiaozii/windows-remote-mic-app/releases>
-- 具体发布：<https://github.com/miaomiaozii/windows-remote-mic-app/releases/tag/v0.1.0-windows-rc003-candidate.1>
+- 正式版 `v0.1.0-windows`：<https://github.com/miaomiaozii/windows-remote-mic-app/releases/tag/v0.1.0-windows>
+- 候选版 `v0.1.0-windows-rc003-candidate.1`（历史）：<https://github.com/miaomiaozii/windows-remote-mic-app/releases/tag/v0.1.0-windows-rc003-candidate.1>
+
+正式版资产文件名沿用构建流程的内部版本号 `0.1.0-candidate`（见
+`installer/RemoteMicRC003Setup.iss` 的 `AppVersion`）；Release tag 为
+`v0.1.0-windows`。
 
 每个版本的安装器、便携版 ZIP 和 `SHA256SUMS.txt` 必须来自同一次 Windows CI
 构建；发布前已在真实 RC003 上完成配对、按键和语音链路验收，并在发布说明中

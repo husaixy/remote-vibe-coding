@@ -24,7 +24,7 @@ Windows 客户端位于 [`apps/windows/rc003`](apps/windows/rc003/README.md)，�
 
 ## 下载与安装
 
-最新候选发布：[v0.1.0-windows-rc003-candidate.1](https://github.com/miaomiaozii/windows-remote-mic-app/releases/tag/v0.1.0-windows-rc003-candidate.1)。
+最新正式版：[v0.1.0-windows](https://github.com/miaomiaozii/windows-remote-mic-app/releases/tag/v0.1.0-windows)。
 
 从 Release 页面 Assets 下载，二选一：
 

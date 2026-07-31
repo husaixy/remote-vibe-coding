@@ -1,10 +1,17 @@
 # Changelog — Remote Mic RC003 (Windows)
 
-本项目按“候选发布”打标签。内部构建版本号固定在
-`installer/RemoteMicRC003Setup.iss` 的 `AppVersion`（当前 `0.1.0-candidate`），
-仓库级 tag 只作为发布编号，两者对应关系以每条发布说明为准。
+内部构建版本号固定在 `installer/RemoteMicRC003Setup.iss` 的 `AppVersion`
+（当前 `0.1.0-candidate`），仓库级 tag 只作为发布编号，两者对应关系以每条
+发布说明为准。正式版 tag 格式：`v<内部版本>-windows`；候选版为
+`v<内部版本>-windows-rc003-candidate.<序号>`。
 
-标签格式：`v<内部版本>-windows-rc003-candidate.<序号>`。
+## [0.1.0] — 2026-07-31
+
+标签：`v0.1.0-windows`（基于 `271ed79`）
+
+正式发布。本版本在真实 RC003 遥控器上完成逐键、语音链路验收（方向/OK/Home/
+Menu/TV/Power/返回/音量± 单次触发，麦克风键启动豆包输入法并识别语音），
+内容与候选版 `v0.1.0-windows-rc003-candidate.1` 相同。
 
 ## [0.1.0-candidate] — 2026-07-31
 
