@@ -11,6 +11,9 @@ class _FakeNative:
         self.voice_visible = False
         self.owner = wetype.EXPECTED_PROCESS_NAME
         self.clicks = []
+        self.reveals = []
+        self.restores = []
+        self.click_succeeds = True
 
     def find_window(self, class_name, title):
         if (class_name, title) == (wetype.TOOLBAR_CLASS, wetype.TOOLBAR_TITLE):
@@ -31,8 +34,19 @@ class _FakeNative:
     def client_size(self, hwnd):
         return (160, 40)
 
+    def reveal_toolbar_offscreen(self, hwnd):
+        self.reveals.append(hwnd)
+        self.toolbar_visible = True
+        return (100, 200, 260, 240)
+
+    def restore_hidden_toolbar(self, hwnd, original):
+        self.restores.append((hwnd, original))
+        self.toolbar_visible = False
+
     def post_left_click(self, hwnd, x, y):
         self.clicks.append((hwnd, x, y))
+        if not self.click_succeeds:
+            return False
         self.voice_visible = not self.voice_visible
         return True
 
@@ -57,16 +71,28 @@ class WeChatInputMethodVoiceToolbarTests(unittest.TestCase):
         self.assertFalse(native.voice_visible)
         self.assertEqual(len(native.clicks), 2)
 
-    def test_rejects_spoofed_owner_or_hidden_toolbar(self):
+    def test_rejects_spoofed_owner(self):
         native = _FakeNative()
         native.owner = "not-wetype.exe"
         self.assertFalse(wetype.set_voice_panel_active(True, _native=native))
         self.assertEqual(native.clicks, [])
 
-        native.owner = wetype.EXPECTED_PROCESS_NAME
+    def test_hidden_toolbar_is_revealed_offscreen_then_restored(self):
+        native = _FakeNative()
         native.toolbar_visible = False
+        self.assertTrue(wetype.set_voice_panel_active(True, _native=native))
+        self.assertTrue(native.voice_visible)
+        self.assertFalse(native.toolbar_visible)
+        self.assertEqual(native.reveals, [10])
+        self.assertEqual(native.restores, [(10, (100, 200, 260, 240))])
+
+    def test_hidden_toolbar_is_restored_when_click_fails(self):
+        native = _FakeNative()
+        native.toolbar_visible = False
+        native.click_succeeds = False
         self.assertFalse(wetype.set_voice_panel_active(True, _native=native))
-        self.assertEqual(native.clicks, [])
+        self.assertFalse(native.toolbar_visible)
+        self.assertEqual(len(native.restores), 1)
 
 
 if __name__ == "__main__":

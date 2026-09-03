@@ -494,11 +494,14 @@ class RC003App:
         self._supervisor.request_reconnect()
 
     def _legacy_voice_transform_enabled(self) -> bool:
-        """Whether the selected HOLD preset uses the physical right-Alt path."""
+        """Whether HOLD still needs the legacy physical right-Alt path.
 
-        return self._voice.trigger_mode == key_mapping.VoiceTriggerMode.HOLD and (
-            self._voice_hotkey.serialize() == "ralt"
-        )
+        The right-Alt hold preset is handled through WeChat Input Method's
+        status-bar voice button first.  Keeping the F5-to-Alt transform armed
+        would mark the host action as already delivered and bypass that path.
+        """
+
+        return False
 
     def _emit_legacy_voice_key(
         self,
@@ -1003,7 +1006,10 @@ class RC003App:
         tokens = tuple(self._voice_hotkey.modifiers) + (self._voice_hotkey.key,)
         if (
             self._voice.trigger_mode == key_mapping.VoiceTriggerMode.HOLD
-            and set(tokens) == {"lctrl", "lwin"}
+            and (
+                tokens == ("ralt",)
+                or set(tokens) == {"lctrl", "lwin"}
+            )
             and action in {
                 voice_controller.VoiceHostAction.KEY_DOWN,
                 voice_controller.VoiceHostAction.KEY_UP,
