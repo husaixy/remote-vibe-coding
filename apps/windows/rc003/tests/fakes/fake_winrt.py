@@ -163,6 +163,7 @@ class FakeGattDeviceService:
     def __init__(self) -> None:
         self.closed = False
         self._characteristics: Dict[uuid.UUID, FakeGattCharacteristic] = {}
+        self.uncached_characteristics_status = FakeGattCommunicationStatus.SUCCESS
 
     def register_characteristic(self, characteristic_uuid: uuid.UUID, characteristic) -> None:
         self._characteristics[characteristic_uuid] = characteristic
@@ -182,6 +183,8 @@ class FakeGattDeviceService:
     async def get_characteristics_with_cache_mode_async(
         self, cache_mode
     ) -> FakeGattCharacteristicsResult:
+        if self.uncached_characteristics_status != FakeGattCommunicationStatus.SUCCESS:
+            return FakeGattCharacteristicsResult(self.uncached_characteristics_status, [])
         return FakeGattCharacteristicsResult(
             FakeGattCommunicationStatus.SUCCESS, list(self._characteristics.values())
         )
@@ -213,6 +216,9 @@ class FakeBluetoothLEDevice:
         self._connection_status_handlers: Dict[int, Any] = {}
         self._next_token = 1
         self.connection_status = FakeBluetoothConnectionStatus.CONNECTED
+        self.service_query_history: List[int] = []
+        self.uncached_service_status = FakeGattCommunicationStatus.SUCCESS
+        self.cached_service_status = FakeGattCommunicationStatus.SUCCESS
 
     def add_connection_status_changed(self, handler) -> int:
         token = self._next_token
@@ -235,7 +241,14 @@ class FakeBluetoothLEDevice:
     async def get_gatt_services_for_uuid_with_cache_mode_async(
         self, service_uuid: uuid.UUID, cache_mode
     ) -> FakeGattServicesResult:
-        return await self.get_gatt_services_for_uuid_async(service_uuid)
+        self.service_query_history.append(cache_mode)
+        status = (
+            self.uncached_service_status
+            if cache_mode == FakeBluetoothCacheMode.UNCACHED
+            else self.cached_service_status
+        )
+        services = [self._service] if status == FakeGattCommunicationStatus.SUCCESS else []
+        return FakeGattServicesResult(status, services)
 
     def close(self) -> None:
         self.closed = True

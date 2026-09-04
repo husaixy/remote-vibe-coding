@@ -37,7 +37,12 @@ from ovb_rc003 import atvv_session
 from ovb_rc003 import identity
 from ovb_rc003.ble_transport_winrt import RC003BleSession, discover_candidates
 
-from .fakes.fake_winrt import FakeWinRTEnvironment, gatt_service_instance_id
+from .fakes.fake_winrt import (
+    FakeBluetoothCacheMode,
+    FakeGattCommunicationStatus,
+    FakeWinRTEnvironment,
+    gatt_service_instance_id,
+)
 
 
 def _run(coro):
@@ -158,6 +163,32 @@ class ConnectTests(unittest.TestCase):
         try:
             self.assertIn(1, env.audio_characteristic.cccd_history)  # NOTIFY == 1
             self.assertIn(1, env.control_characteristic.cccd_history)
+        finally:
+            _run(session.close())
+
+    def test_connect_falls_back_to_cached_service_when_sleeping_remote_rejects_uncached(self):
+        env = FakeWinRTEnvironment()
+        env.device.uncached_service_status = FakeGattCommunicationStatus.UNREACHABLE
+        env.service.uncached_characteristics_status = (
+            FakeGattCommunicationStatus.UNREACHABLE
+        )
+
+        async def scenario():
+            session, candidate = self._connect_session(
+                env, on_pcm_frame=lambda samples: None
+            )
+            await session.connect(candidate)
+            return session
+
+        session = _run(scenario())
+        try:
+            self.assertEqual(
+                env.device.service_query_history,
+                [FakeBluetoothCacheMode.UNCACHED, FakeBluetoothCacheMode.CACHED],
+            )
+            self.assertEqual(
+                env.tx_characteristic.write_history[-1], proto.GET_CAPABILITIES_V10
+            )
         finally:
             _run(session.close())
 

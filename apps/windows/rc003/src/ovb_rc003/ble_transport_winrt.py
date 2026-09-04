@@ -274,6 +274,23 @@ class RC003BleSession:
         service_result = await self._device.get_gatt_services_for_uuid_with_cache_mode_async(
             service_uuid, winrt.bluetooth_cache_mode.UNCACHED
         )
+        using_cached_service = False
+        # A sleeping RC001/RC003 can remain paired with its ATVV service
+        # registered in Windows while an on-air UNCACHED query temporarily
+        # returns UNREACHABLE/no services.  The cached service is still a
+        # usable WinRT GATT object in that state (and wakes the remote when
+        # MIC_OPEN is written), so fall back to it before abandoning this
+        # connection attempt.  We still prefer UNCACHED first to avoid the
+        # stale/incomplete characteristic table this client has seen on
+        # freshly paired devices.
+        if (
+            service_result.status != winrt.gatt_communication_status.SUCCESS
+            or not service_result.services
+        ):
+            service_result = await self._device.get_gatt_services_for_uuid_with_cache_mode_async(
+                service_uuid, winrt.bluetooth_cache_mode.CACHED
+            )
+            using_cached_service = True
         if (
             service_result.status != winrt.gatt_communication_status.SUCCESS
             or not service_result.services
@@ -282,13 +299,22 @@ class RC003BleSession:
         self._service = service_result.services[0]
 
         self._tx_characteristic = await self._require_characteristic(
-            self._service, proto.VOICE_TX_UUID, winrt
+            self._service,
+            proto.VOICE_TX_UUID,
+            winrt,
+            prefer_cached=using_cached_service,
         )
         self._audio_characteristic = await self._require_characteristic(
-            self._service, proto.VOICE_AUDIO_UUID, winrt
+            self._service,
+            proto.VOICE_AUDIO_UUID,
+            winrt,
+            prefer_cached=using_cached_service,
         )
         self._control_characteristic = await self._require_characteristic(
-            self._service, proto.VOICE_CONTROL_UUID, winrt
+            self._service,
+            proto.VOICE_CONTROL_UUID,
+            winrt,
+            prefer_cached=using_cached_service,
         )
 
         self._audio_token = self._audio_characteristic.add_value_changed(
@@ -311,19 +337,42 @@ class RC003BleSession:
         await self._write_tx(proto.GET_CAPABILITIES_V10)
 
     @staticmethod
-    async def _require_characteristic(service, characteristic_uuid: str, winrt: WinRTModules):
+    async def _require_characteristic(
+        service,
+        characteristic_uuid: str,
+        winrt: WinRTModules,
+        *,
+        prefer_cached: bool = False,
+    ):
         parsed_uuid = uuid.UUID(characteristic_uuid)
+        if prefer_cached:
+            cached_result = await service.get_characteristics_for_uuid_async(parsed_uuid)
+            if (
+                cached_result.status == winrt.gatt_communication_status.SUCCESS
+                and cached_result.characteristics
+            ):
+                return cached_result.characteristics[0]
         # Enumerate the service's full characteristic table with UNCACHED
         # (the exact-UUID lookup can return an empty/unsuccessful result when
         # the per-service GATT cache is incomplete) and match on the UUID.
         result = await service.get_characteristics_with_cache_mode_async(
             winrt.bluetooth_cache_mode.UNCACHED
         )
-        if result.status != winrt.gatt_communication_status.SUCCESS:
-            raise ConnectionError(f"ATVV characteristic not found: {characteristic_uuid}")
-        for characteristic in result.characteristics:
-            if str(characteristic.uuid).casefold() == str(parsed_uuid).casefold():
-                return characteristic
+        if result.status == winrt.gatt_communication_status.SUCCESS:
+            for characteristic in result.characteristics:
+                if str(characteristic.uuid).casefold() == str(parsed_uuid).casefold():
+                    return characteristic
+
+        # Keep the same sleeping-device fallback as the service lookup.
+        # The UUID-scoped overload uses Windows' registered GATT table and
+        # was verified on a real RC003 to return TX/audio/control while the
+        # UNCACHED full-table query temporarily returned UNREACHABLE.
+        cached_result = await service.get_characteristics_for_uuid_async(parsed_uuid)
+        if (
+            cached_result.status == winrt.gatt_communication_status.SUCCESS
+            and cached_result.characteristics
+        ):
+            return cached_result.characteristics[0]
         raise ConnectionError(f"ATVV characteristic not found: {characteristic_uuid}")
 
     async def _write_tx(self, data: bytes) -> None:
