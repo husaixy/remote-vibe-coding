@@ -68,7 +68,6 @@ from . import (
     config,
     connection_supervisor,
     direct_hid_capture,
-    doubao_rpc,
     frida_compat,
     hid_identity,
     hotkey,
@@ -132,7 +131,6 @@ class RC003App:
         # sending a second host shortcut.
         self._voice_legacy_transform_key_down = False
         self._voice_legacy_transform_session = False
-        self._voice_legacy_transform_emitted = False
         self._legacy_f5_is_down = False
         self._ble_session: Optional[ble_transport_winrt.RC003BleSession] = None
         self._hid_listener: Optional[raw_input_windows.RawInputButtonListener] = None
@@ -246,16 +244,15 @@ class RC003App:
             return
 
         # RC003's voice key is reported by Windows' keyboard class as F5 as
-        # well as through ATVV. Raw Input is preferred when available; this
-        # narrowly intercepts the same legacy F5 leak and emits one marked
-        # right-Alt edge before audio starts. Doubao's own callback then
-        # physicalizes that marked edge.
+        # well as through ATVV. When the device-scoped HID tap confirms the
+        # microphone usage, the hook forwards that physical record to later
+        # hooks as right Alt. This preserves WeChat Input Method's focused
+        # editor context instead of opening its detached status-bar panel.
         self._legacy_key_suppressor = legacy_key_suppressor_windows.LegacyKeySuppressor(
             {0x74},
             on_key_event=self._on_legacy_key_event,
             on_untranslated_key_event=self._on_legacy_untranslated_key_event,
             on_key_transform=self._transform_legacy_voice_key,
-            on_key_emit=self._emit_legacy_voice_key,
             rc003_vk_codes=frozenset(raw_input_windows.KEYBOARD_VK_TO_BUTTON) | {0xFF},
             untranslated_key_signatures=frozenset({(0xFF, 0x6A, True)}),
             consume_wait_seconds=0.100,
@@ -268,17 +265,8 @@ class RC003App:
             )
             if self._legacy_voice_transform_enabled():
                 self._logger.info(
-                    "startup: RC003 F5 voice edge transforms to one physical right-Alt edge"
+                    "startup: RC003-confirmed F5 voice edge forwards as physical right Alt"
                 )
-                if doubao_rpc.start_physicalizer():
-                    self._logger.info(
-                        "startup: Doubao low-level voice event physicalizer enabled"
-                    )
-                else:
-                    self._logger.warning(
-                        "startup: Doubao voice physicalizer unavailable: %s",
-                        doubao_rpc.physicalizer_error() or doubao_rpc.physicalizer_status(),
-                    )
         except legacy_key_suppressor_windows.LegacyKeySuppressorUnavailableError as exc:
             self._logger.warning("startup: RC003 voice legacy-key guard unavailable: %s", exc)
             self._legacy_key_suppressor = None
@@ -425,7 +413,6 @@ class RC003App:
                     failures.append("voice hotkey release did not fully deliver; state retained")
                 self._voice_legacy_transform_key_down = False
                 self._voice_legacy_transform_session = False
-                self._voice_legacy_transform_emitted = False
                 self._legacy_f5_is_down = False
         except Exception:
             self._logger.exception("cleanup: releasing the voice hotkey failed")
@@ -447,12 +434,6 @@ class RC003App:
             except Exception:
                 self._logger.exception("cleanup: stopping RC003 voice legacy-key guard failed")
                 failures.append("RC003 voice legacy-key guard did not stop; owner retained")
-
-        try:
-            doubao_rpc.stop_physicalizer()
-        except Exception:
-            self._logger.exception("cleanup: stopping Doubao voice physicalizer failed")
-            failures.append("Doubao voice physicalizer did not stop")
 
         if self._ble_session is not None:
             try:
@@ -494,56 +475,12 @@ class RC003App:
         self._supervisor.request_reconnect()
 
     def _legacy_voice_transform_enabled(self) -> bool:
-        """Whether HOLD still needs the legacy physical right-Alt path.
+        """Whether the selected preset can use the physical right-Alt path."""
 
-        The right-Alt hold preset is handled through WeChat Input Method's
-        status-bar voice button first.  Keeping the F5-to-Alt transform armed
-        would mark the host action as already delivered and bypass that path.
-        """
-
-        return False
-
-    def _emit_legacy_voice_key(
-        self,
-        target: legacy_key_suppressor_windows.PhysicalKeyTarget,
-        is_pressed: bool,
-    ) -> bool:
-        """Emit exactly one right-Alt edge for a physical F5 edge.
-
-        The original F5 is swallowed by ``LegacyKeySuppressor``. This callback
-        emits the single marked right-Alt edge for Doubao's verified callback
-        physicalizer. No second host shortcut is sent for this session.
-        """
-
-        expected = legacy_key_suppressor_windows.PhysicalKeyTarget(
-            vk_code=0xA5,
-            scan_code=0x38,
-            extended=True,
-            system_key=True,
+        return (
+            self._voice.trigger_mode == key_mapping.VoiceTriggerMode.HOLD
+            and self._voice_hotkey.serialize() == "ralt"
         )
-        if target != expected:
-            self._voice_legacy_transform_emitted = False
-            return False
-        try:
-            if is_pressed:
-                win32_input.send_voice_key_combo_down(("ralt",))
-            else:
-                win32_input.send_voice_key_combo_up(("ralt",))
-            self._voice_legacy_transform_emitted = True
-            self._logger.info(
-                "voice physical F5 replaced with one right-Alt edge via %s: %s",
-                win32_input.voice_backend_name(),
-                "down" if is_pressed else "up",
-            )
-            return True
-        except (win32_input.Win32InputUnavailableError, OSError):
-            self._voice_legacy_transform_emitted = False
-            if is_pressed:
-                self._voice_legacy_transform_key_down = False
-            self._logger.exception(
-                "voice physical right-Alt replacement failed; using host fallback"
-            )
-            return False
 
     def _transform_legacy_voice_key(
         self, vk_code: int, is_pressed: bool
@@ -560,6 +497,10 @@ class RC003App:
         if vk_code != 0x74 or not self._legacy_voice_transform_enabled():
             return None
         if is_pressed:
+            with self._direct_hid_lock:
+                remote_mic_is_down = 0x003E in self._direct_hid_usages
+            if not remote_mic_is_down:
+                return None
             if (
                 self._voice.active
                 or self._voice_raw_input_trigger_pending
@@ -601,10 +542,7 @@ class RC003App:
                 self._logger.info(
                     "voice legacy F5 trigger received from low-level keyboard hook"
                 )
-                if (
-                    self._voice_legacy_transform_emitted
-                    or self._voice_legacy_transform_key_down
-                ):
+                if self._voice_legacy_transform_key_down:
                     self._voice_legacy_transform_session = True
             elif not self._legacy_f5_is_down:
                 return
@@ -616,7 +554,6 @@ class RC003App:
                 is_pressed,
                 host_action_handled=host_action_handled,
             )
-            self._voice_legacy_transform_emitted = False
 
     def _on_legacy_untranslated_key_event(
         self,
@@ -1006,6 +943,7 @@ class RC003App:
         tokens = tuple(self._voice_hotkey.modifiers) + (self._voice_hotkey.key,)
         if (
             self._voice.trigger_mode == key_mapping.VoiceTriggerMode.HOLD
+            and not self._voice_legacy_transform_session
             and (
                 tokens == ("ralt",)
                 or set(tokens) == {"lctrl", "lwin"}
@@ -1031,25 +969,13 @@ class RC003App:
                 action == voice_controller.VoiceHostAction.KEY_UP
                 and self._voice_legacy_transform_key_down
             ):
-                # Audio can stop before the remote's leaked F5 key-up arrives.
-                # Release the replacement right-Alt edge here so a disconnect
-                # or early stream stop can never leave Alt logically held.
-                try:
-                    win32_input.send_voice_key_combo_up(("ralt",))
-                    self._voice_legacy_transform_key_down = False
-                    self._voice_legacy_transform_session = False
-                    self._logger.info(
-                        "voice released right-Alt replacement before physical F5 key-up"
-                    )
-                    return True
-                except (
-                    win32_input.Win32InputUnavailableError,
-                    OSError,
-                ):
-                    self._logger.exception(
-                        "voice right-Alt replacement release failed"
-                    )
-                    return False
+                # The down edge was forwarded as a physical hook record, so
+                # an injected key-up would not be an equivalent pair. Keep
+                # the transform armed until the remote's real F5-up arrives.
+                self._logger.info(
+                    "voice audio stopped; awaiting physical F5-up to forward right Alt-up"
+                )
+                return True
             self._logger.info(
                 "voice host action already delivered by physical F5-to-right-Alt transform: %s",
                 action.value,
