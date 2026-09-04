@@ -24,6 +24,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import unittest
 from pathlib import Path
 
@@ -602,6 +603,27 @@ class OrdinaryButtonGestureWiringTests(_AppWiringTestCase):
             self.app._on_button_event = original
 
         self.assertEqual([entry[0][:2] for entry in calls], [("mic", True), ("mic", False)])
+
+    def test_legacy_f5_hook_dispatch_does_not_wait_for_voice_activation(self):
+        callback_started = threading.Event()
+        callback_release = threading.Event()
+        original = self.app._on_legacy_key_event
+
+        def blocking_callback(vk_code, is_pressed):
+            callback_started.set()
+            callback_release.wait(1.0)
+
+        self.app._on_legacy_key_event = blocking_callback
+        try:
+            start = time.monotonic()
+            self.app._dispatch_legacy_key_event(0x74, True)
+            elapsed = time.monotonic() - start
+            self.assertTrue(callback_started.wait(0.5))
+        finally:
+            callback_release.set()
+            self.app._on_legacy_key_event = original
+
+        self.assertLess(elapsed, 0.05)
 
     def test_semantic_arrow_action_uses_its_function_executor(self):
         calls = []

@@ -33,6 +33,7 @@ MK_LBUTTON = 0x0001
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 SW_HIDE = 0
 SW_SHOWNOACTIVATE = 4
+ERROR_REGION = 0
 
 
 class _NativeWindows:
@@ -50,6 +51,25 @@ class _NativeWindows:
         self.user32.GetClientRect.restype = wintypes.BOOL
         self.user32.ShowWindow.argtypes = (wintypes.HWND, ctypes.c_int)
         self.user32.ShowWindow.restype = wintypes.BOOL
+        self.gdi32 = ctypes.windll.gdi32  # type: ignore[attr-defined]
+        self.gdi32.CreateRectRgn.argtypes = (
+            ctypes.c_int,
+            ctypes.c_int,
+            ctypes.c_int,
+            ctypes.c_int,
+        )
+        self.gdi32.CreateRectRgn.restype = wintypes.HANDLE
+        self.gdi32.DeleteObject.argtypes = (wintypes.HANDLE,)
+        self.gdi32.DeleteObject.restype = wintypes.BOOL
+        self.user32.GetWindowRgn.argtypes = (wintypes.HWND, wintypes.HANDLE)
+        self.user32.GetWindowRgn.restype = ctypes.c_int
+        self.user32.SetWindowRgn.argtypes = (
+            wintypes.HWND,
+            wintypes.HANDLE,
+            wintypes.BOOL,
+        )
+        self.user32.SetWindowRgn.restype = ctypes.c_int
+        self._saved_toolbar_regions = {}
         self.user32.GetWindowThreadProcessId.argtypes = (
             wintypes.HWND,
             ctypes.POINTER(wintypes.DWORD),
@@ -84,15 +104,41 @@ class _NativeWindows:
         return (max(0, rect.right - rect.left), max(0, rect.bottom - rect.top))
 
     def show_hidden_toolbar(self, hwnd: int) -> bool:
-        """Show the toolbar without focus at its saved monitor position."""
+        """Make the toolbar dispatchable without drawing an intermediate UI."""
 
+        saved_region = self.gdi32.CreateRectRgn(0, 0, 0, 0)
+        if not saved_region:
+            return False
+        if self.user32.GetWindowRgn(hwnd, saved_region) == ERROR_REGION:
+            self.gdi32.DeleteObject(saved_region)
+            saved_region = None
+        empty_region = self.gdi32.CreateRectRgn(0, 0, 0, 0)
+        if not empty_region:
+            if saved_region:
+                self.gdi32.DeleteObject(saved_region)
+            return False
+        if not self.user32.SetWindowRgn(hwnd, empty_region, True):
+            self.gdi32.DeleteObject(empty_region)
+            if saved_region:
+                self.gdi32.DeleteObject(saved_region)
+            return False
+        self._saved_toolbar_regions[int(hwnd)] = saved_region
         self.user32.ShowWindow(hwnd, SW_SHOWNOACTIVATE)
-        return self.is_visible(hwnd)
+        if self.is_visible(hwnd):
+            return True
+        self._restore_toolbar_region(hwnd)
+        return False
 
     def hide_toolbar(self, hwnd: int) -> None:
         """Restore a toolbar that was hidden before this operation."""
 
         self.user32.ShowWindow(hwnd, SW_HIDE)
+        self._restore_toolbar_region(hwnd)
+
+    def _restore_toolbar_region(self, hwnd: int) -> None:
+        saved_region = self._saved_toolbar_regions.pop(int(hwnd), None)
+        if not self.user32.SetWindowRgn(hwnd, saved_region, True) and saved_region:
+            self.gdi32.DeleteObject(saved_region)
 
     def process_name(self, hwnd: int) -> str:
         pid = wintypes.DWORD(0)

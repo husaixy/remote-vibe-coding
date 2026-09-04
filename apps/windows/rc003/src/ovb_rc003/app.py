@@ -244,7 +244,7 @@ class RC003App:
         # record in place.
         self._legacy_key_suppressor = legacy_key_suppressor_windows.LegacyKeySuppressor(
             {0x74},
-            on_key_event=self._on_legacy_key_event,
+            on_key_event=self._dispatch_legacy_key_event,
             on_untranslated_key_event=self._on_legacy_untranslated_key_event,
             rc003_vk_codes=frozenset(raw_input_windows.KEYBOARD_VK_TO_BUTTON) | {0xFF},
             untranslated_key_signatures=frozenset({(0xFF, 0x6A, True)}),
@@ -488,6 +488,22 @@ class RC003App:
             else:
                 self._legacy_f5_is_down = False
             self._on_button_event("mic", is_pressed)
+
+    def _dispatch_legacy_key_event(self, vk_code: int, is_pressed: bool) -> None:
+        """Leave the low-level hook before voice activation can block.
+
+        Windows silently removes a low-level keyboard hook when its callback
+        takes too long. WeChat activation can wait for UI state, so run the
+        application callback on a daemon thread while the hook immediately
+        returns the suppression result for the original F5 edge.
+        """
+
+        threading.Thread(
+            target=self._on_legacy_key_event,
+            args=(int(vk_code), bool(is_pressed)),
+            name="rc003-legacy-voice-edge",
+            daemon=True,
+        ).start()
 
     def _on_legacy_untranslated_key_event(
         self,
