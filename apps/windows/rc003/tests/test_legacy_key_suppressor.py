@@ -30,6 +30,26 @@ class LegacyKeySuppressorDecisionTests(unittest.TestCase):
         gate = suppressor.LegacyKeySuppressor({0x74})
         self.assertFalse(gate.should_suppress(0x74, suppressor.LLKHF_INJECTED))
 
+    def test_suppresses_injected_f5_only_while_correlated_with_physical_f5(self):
+        gate = suppressor.LegacyKeySuppressor({0x74})
+        injected = suppressor.LLKHF_INJECTED
+
+        self.assertFalse(gate.handle_correlated_injected_key_event(0x74, injected, True))
+        self.assertTrue(gate.handle_key_event(0x74, 0, True))
+        self.assertTrue(gate.handle_correlated_injected_key_event(0x74, injected, True))
+        self.assertTrue(gate.handle_key_event(0x74, 0, False))
+        self.assertTrue(gate.handle_correlated_injected_key_event(0x74, injected, False))
+
+    def test_does_not_suppress_unrelated_injected_key(self):
+        gate = suppressor.LegacyKeySuppressor({0x74})
+        gate.handle_key_event(0x74, 0, True)
+
+        self.assertFalse(
+            gate.handle_correlated_injected_key_event(
+                0x73, suppressor.LLKHF_INJECTED, True
+            )
+        )
+
     def test_physicalizes_only_marked_right_alt_event(self):
         gate = suppressor.LegacyKeySuppressor({0x74})
         event = suppressor.KBDLLHOOKSTRUCT(

@@ -149,6 +149,8 @@ class LegacyKeySuppressor:
         self._consume_wait_seconds = max(0.0, float(consume_wait_seconds))
         self._armed_events: List[_ArmedKeyEvent] = []
         self._armed_events_lock = threading.Lock()
+        self._suppressed_physical_keys: set[int] = set()
+        self._injected_duplicate_deadlines: dict[int, float] = {}
         # Raw Input and the low-level hook run on different threads, so
         # ``arm_key_event`` (Raw Input thread) and ``consume_armed_key_event``
         # (hook thread) race for the same physical press. The consumer waits
@@ -199,6 +201,14 @@ class LegacyKeySuppressor:
 
         if not self.should_suppress(vk_code, flags):
             return False
+        key = int(vk_code)
+        with self._armed_events_lock:
+            if is_pressed:
+                self._suppressed_physical_keys.add(key)
+                self._injected_duplicate_deadlines.pop(key, None)
+            else:
+                self._suppressed_physical_keys.discard(key)
+                self._injected_duplicate_deadlines[key] = time.monotonic() + 0.5
         if self._on_key_event is not None:
             try:
                 self._on_key_event(int(vk_code), bool(is_pressed))
@@ -207,6 +217,37 @@ class LegacyKeySuppressor:
                 # callback is temporarily unavailable.
                 pass
         return True
+
+    def handle_correlated_injected_key_event(
+        self, vk_code: int, flags: int, is_pressed: bool
+    ) -> bool:
+        """Suppress an injected duplicate of a just-owned physical key.
+
+        Some Bluetooth/HID paths emit a second synthetic F5 after the real
+        RC003 F5 edge. Injected input remains allowed normally; it is owned
+        only while the matching physical key is down or during the brief
+        release tail of that same press.
+        """
+
+        key = int(vk_code)
+        if not (int(flags) & LLKHF_INJECTED) or key not in self._suppress_vk_codes:
+            return False
+        with self._armed_events_lock:
+            deadline = self._injected_duplicate_deadlines.get(key, 0.0)
+            correlated = (
+                key in self._suppressed_physical_keys
+                or time.monotonic() <= deadline
+            )
+            if not correlated and deadline:
+                self._injected_duplicate_deadlines.pop(key, None)
+        if correlated:
+            _logger.info(
+                "suppressed correlated injected duplicate: vk=0x%X pressed=%s flags=0x%X",
+                key,
+                bool(is_pressed),
+                int(flags),
+            )
+        return correlated
 
     def handle_untranslated_key_event(
         self,
@@ -455,6 +496,8 @@ class LegacyKeySuppressor:
         self._stop_event.set()
         with self._armed_events_lock:
             self._armed_events.clear()
+            self._suppressed_physical_keys.clear()
+            self._injected_duplicate_deadlines.clear()
         if self._thread is None:
             return
         if sys.platform == "win32" and self._thread_id.value:
@@ -563,6 +606,10 @@ class LegacyKeySuppressor:
                 finally:
                     event.flags = original_flags
                     event.dwExtraInfo = original_extra_info
+            if self.handle_correlated_injected_key_event(
+                event.vkCode, event.flags, is_pressed
+            ):
+                return 1
             if self.should_suppress(event.vkCode, event.flags):
                 if self._on_key_transform is not None:
                     try:
