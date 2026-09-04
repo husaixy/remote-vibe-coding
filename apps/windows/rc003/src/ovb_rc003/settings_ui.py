@@ -34,6 +34,7 @@ from typing import Dict, Optional, Tuple
 
 from . import (
     audio_output,
+    bridge_control,
     bridge_launcher,
     device_catalog,
     device_profile,
@@ -375,6 +376,18 @@ def describe_launch_result(result: bridge_launcher.LaunchResult) -> str:
         f"启动失败：无法创建桥接进程（{result.error}）。请用下方“打开日志目录”查看 "
         "app.log，并确认安装/便携版文件是否完整。"
     )
+
+
+def describe_restart_result(result: bridge_launcher.RestartResult) -> str:
+    if result.stop.outcome is bridge_control.StopOutcome.TIMED_OUT:
+        return "重启失败：旧桥接未能在 10 秒内完成断开和清理，新桥接未启动。请查看 app.log。"
+    if result.stop.outcome is bridge_control.StopOutcome.FAILED:
+        return f"重启失败：无法安全停止旧桥接（{result.stop.error}），新桥接未启动。"
+
+    launch_text = describe_launch_result(result.launch) if result.launch is not None else ""
+    if result.stop.outcome is bridge_control.StopOutcome.STOPPED:
+        return "已断开并停止旧桥接。" + launch_text
+    return "未发现正在运行的桥接。" + launch_text
 
 
 def describe_log_open_result(result: logging_setup.LogOpenResult) -> str:

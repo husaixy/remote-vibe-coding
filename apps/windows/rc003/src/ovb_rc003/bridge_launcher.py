@@ -67,7 +67,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
-from . import single_instance
+from . import bridge_control, single_instance
 
 # Reused, not redefined - see module docstring's ALREADY_RUNNING note.
 ALREADY_RUNNING_EXIT_CODE = single_instance.DUPLICATE_INSTANCE_EXIT_CODE
@@ -130,6 +130,12 @@ class LaunchResult:
     pid: Optional[int] = None
     exit_code: Optional[int] = None
     error: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class RestartResult:
+    stop: bridge_control.StopResult
+    launch: Optional[LaunchResult] = None
 
 
 def launch_bridge(
@@ -195,3 +201,22 @@ def launch_bridge(
         pid=pid,
         exit_code=exit_code,
     )
+
+
+def restart_bridge(
+    *,
+    stop_timeout_seconds: float = bridge_control.DEFAULT_STOP_TIMEOUT_SECONDS,
+) -> RestartResult:
+    """Stop an existing bridge cleanly, then launch one replacement.
+
+    A timeout or control failure is fail-closed: no replacement starts while
+    the old bridge may still own BLE, audio, or injected-key state.
+    """
+
+    stop_result = bridge_control.request_bridge_stop(stop_timeout_seconds)
+    if stop_result.outcome in {
+        bridge_control.StopOutcome.TIMED_OUT,
+        bridge_control.StopOutcome.FAILED,
+    }:
+        return RestartResult(stop=stop_result)
+    return RestartResult(stop=stop_result, launch=launch_bridge())

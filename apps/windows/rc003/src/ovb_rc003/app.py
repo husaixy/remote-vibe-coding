@@ -57,7 +57,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
-from typing import List, Optional
+from typing import Callable, List, Optional
 
 from . import (
     audio_output,
@@ -1144,16 +1144,25 @@ class RC003App:
             self._supervisor.request_reconnect()
 
 
-async def _run() -> None:
+async def _run(stop_requested: Optional[Callable[[], bool]] = None) -> None:
     app = RC003App()
+    run_task = asyncio.create_task(app.run_forever())
     try:
-        await app.run_forever()
+        while not run_task.done():
+            if stop_requested is not None and stop_requested():
+                await app.stop()
+                break
+            try:
+                await asyncio.wait_for(asyncio.shield(run_task), timeout=0.1)
+            except asyncio.TimeoutError:
+                pass
+        await run_task
     finally:
         await app.stop()
 
 
-def main() -> None:
-    asyncio.run(_run())
+def main(stop_requested: Optional[Callable[[], bool]] = None) -> None:
+    asyncio.run(_run(stop_requested))
 
 
 if __name__ == "__main__":

@@ -449,7 +449,7 @@ class SettingsControllerTests(unittest.TestCase):
         controller.selectedDeviceIndex = controller._DEVICE_ORDER.index(
             device_catalog.DJI_MIC_2_ID
         )
-        with mock.patch.object(bridge_launcher, "launch_bridge") as fake_launch:
+        with mock.patch.object(bridge_launcher, "restart_bridge") as fake_launch:
             controller.saveAndLaunch()
         fake_launch.assert_not_called()
         self.assertIn("不启动 RC003", controller.launchStatusText)
@@ -479,17 +479,22 @@ class SettingsControllerTests(unittest.TestCase):
     def test_save_and_launch_never_launches_when_save_fails(self):
         controller, _ = self._make_controller()
         controller.hotkeyText = ""
-        with mock.patch.object(bridge_launcher, "launch_bridge") as fake_launch:
+        with mock.patch.object(bridge_launcher, "restart_bridge") as fake_launch:
             controller.saveAndLaunch()
         fake_launch.assert_not_called()
         self.assertEqual(controller.launchStatusText, settings_ui.LAUNCH_NOT_STARTED_TEXT)
 
     def test_save_and_launch_launches_and_reports_started_when_save_succeeds(self):
         controller, _ = self._make_controller()
-        fake_result = bridge_launcher.LaunchResult(
-            outcome=bridge_launcher.LaunchOutcome.STARTED, command=("exe",), pid=4321
+        fake_result = bridge_launcher.RestartResult(
+            stop=bridge_launcher.bridge_control.StopResult(
+                bridge_launcher.bridge_control.StopOutcome.STOPPED
+            ),
+            launch=bridge_launcher.LaunchResult(
+                outcome=bridge_launcher.LaunchOutcome.STARTED, command=("exe",), pid=4321
+            ),
         )
-        with mock.patch.object(bridge_launcher, "launch_bridge", return_value=fake_result):
+        with mock.patch.object(bridge_launcher, "restart_bridge", return_value=fake_result):
             controller.saveAndLaunch()
         self.assertIn("4321", controller.launchStatusText)
         self.assertNotIn("已连接", controller.launchStatusText)

@@ -13,7 +13,14 @@ import sys
 import unittest
 
 from ovb_rc003 import __main__ as main_module
-from ovb_rc003 import app, config, device_catalog, single_instance, windows_diagnostics
+from ovb_rc003 import (
+    app,
+    bridge_control,
+    config,
+    device_catalog,
+    single_instance,
+    windows_diagnostics,
+)
 
 
 def _make_guard_class(*, raise_on_enter=None, enter_calls=None):
@@ -41,6 +48,7 @@ class _ArgvRestoringTestCase(unittest.TestCase):
         self._original_argv = sys.argv
         self._original_guard_cls = single_instance.BridgeInstanceGuard
         self._original_app_main = app.main
+        self._original_control_owner = bridge_control.BridgeControlOwner
         self._original_notice = single_instance.show_bridge_startup_blocked_notice
         self._original_load_config = config.load_config
         # XRBM-023: default every test in this suite to a safe no-op stub for
@@ -57,10 +65,23 @@ class _ArgvRestoringTestCase(unittest.TestCase):
             "selected_device_profile": device_catalog.RC003_ID
         }
 
+        class _FakeControlOwner:
+            def stop_requested(self):
+                return False
+
+            def mark_stopped(self):
+                pass
+
+            def close(self):
+                pass
+
+        bridge_control.BridgeControlOwner = _FakeControlOwner
+
     def tearDown(self):
         sys.argv = self._original_argv
         single_instance.BridgeInstanceGuard = self._original_guard_cls
         app.main = self._original_app_main
+        bridge_control.BridgeControlOwner = self._original_control_owner
         single_instance.show_bridge_startup_blocked_notice = self._original_notice
         config.load_config = self._original_load_config
 
@@ -68,7 +89,7 @@ class _ArgvRestoringTestCase(unittest.TestCase):
 class BridgeModeRoutingTests(_ArgvRestoringTestCase):
     def test_rc001_profile_starts_the_shared_xiaomi_bridge(self):
         app_main_calls = []
-        app.main = lambda: app_main_calls.append(1)
+        app.main = lambda **kwargs: app_main_calls.append(kwargs)
         config.load_config = lambda path: {
             "selected_device_profile": device_catalog.RC001_ID
         }
@@ -77,7 +98,8 @@ class BridgeModeRoutingTests(_ArgvRestoringTestCase):
 
         main_module.main()
 
-        self.assertEqual(app_main_calls, [1])
+        self.assertEqual(len(app_main_calls), 1)
+        self.assertTrue(callable(app_main_calls[0]["stop_requested"]))
 
     def test_dji_profile_never_starts_the_rc003_bridge(self):
         app.main = lambda: self.fail("DJI Mic 2 must not start the RC003 bridge")
@@ -98,17 +120,18 @@ class BridgeModeRoutingTests(_ArgvRestoringTestCase):
 
     def test_bridge_flag_calls_app_main_exactly_once_on_first_owner(self):
         app_main_calls = []
-        app.main = lambda: app_main_calls.append(1)
+        app.main = lambda **kwargs: app_main_calls.append(kwargs)
         single_instance.BridgeInstanceGuard = _make_guard_class()
         sys.argv = ["ovb_rc003", "--bridge"]
 
         main_module.main()  # must not raise
 
-        self.assertEqual(app_main_calls, [1])
+        self.assertEqual(len(app_main_calls), 1)
+        self.assertTrue(callable(app_main_calls[0]["stop_requested"]))
 
     def test_duplicate_launch_never_calls_app_main(self):
         app_main_calls = []
-        app.main = lambda: app_main_calls.append(1)
+        app.main = lambda **kwargs: app_main_calls.append(kwargs)
         single_instance.BridgeInstanceGuard = _make_guard_class(
             raise_on_enter=single_instance.DuplicateInstanceError("already running")
         )
@@ -203,7 +226,7 @@ class BridgeModeRoutingTests(_ArgvRestoringTestCase):
         # exit, since the packaged executable is windowed (console=False)
         # and an unhandled exception's traceback is otherwise never seen.
         app_main_calls = []
-        app.main = lambda: app_main_calls.append(1)
+        app.main = lambda **kwargs: app_main_calls.append(kwargs)
 
         class _CleanupFailingGuard:
             def __enter__(self):
@@ -223,7 +246,7 @@ class BridgeModeRoutingTests(_ArgvRestoringTestCase):
         with self.assertRaises(SystemExit) as ctx:
             main_module.main()
 
-        self.assertEqual(app_main_calls, [1])  # app.main() DID run to completion
+        self.assertEqual(len(app_main_calls), 1)  # app.main() DID run to completion
         self.assertEqual(ctx.exception.code, single_instance.CLEANUP_FAILED_EXIT_CODE)
         self.assertNotEqual(single_instance.CLEANUP_FAILED_EXIT_CODE, 0)
         self.assertEqual(len(notice_calls), 1)

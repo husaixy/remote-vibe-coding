@@ -105,7 +105,7 @@ Item {
                         spacing: tokens.spacingSmall
                         Button {
                             id: saveAndLaunchButton
-                            text: qsTr("保存并启动桥接")
+                            text: qsTr("保存并重启桥接")
                             highlighted: true
                             onClicked: SettingsController.saveAndLaunch()
                             KeyNavigation.tab: openLogButton

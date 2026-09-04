@@ -7,7 +7,7 @@ tests/test_single_instance.py's injected ``_create_mutex``/etc.).
 
 import unittest
 
-from ovb_rc003 import bridge_launcher, single_instance
+from ovb_rc003 import bridge_control, bridge_launcher, single_instance
 
 
 class BuildLaunchCommandTests(unittest.TestCase):
@@ -202,6 +202,59 @@ class LaunchBridgeTests(unittest.TestCase):
 
         self.assertEqual(len(popen_calls), 1)
         self.assertTrue(popen_calls[0])  # non-empty, host-dependent contents
+
+
+class RestartBridgeTests(unittest.TestCase):
+    def test_stops_existing_bridge_before_launching_replacement(self):
+        order = []
+        stop_result = bridge_control.StopResult(bridge_control.StopOutcome.STOPPED)
+        launch_result = bridge_launcher.LaunchResult(
+            bridge_launcher.LaunchOutcome.STARTED, ("exe",), pid=99
+        )
+
+        original_stop = bridge_control.request_bridge_stop
+        original_launch = bridge_launcher.launch_bridge
+        bridge_control.request_bridge_stop = lambda timeout: order.append("stop") or stop_result
+        bridge_launcher.launch_bridge = lambda: order.append("launch") or launch_result
+        try:
+            result = bridge_launcher.restart_bridge(stop_timeout_seconds=2.0)
+        finally:
+            bridge_control.request_bridge_stop = original_stop
+            bridge_launcher.launch_bridge = original_launch
+
+        self.assertEqual(order, ["stop", "launch"])
+        self.assertIs(result.launch, launch_result)
+
+    def test_timeout_fails_closed_without_launching(self):
+        stop_result = bridge_control.StopResult(bridge_control.StopOutcome.TIMED_OUT)
+        original_stop = bridge_control.request_bridge_stop
+        original_launch = bridge_launcher.launch_bridge
+        bridge_control.request_bridge_stop = lambda timeout: stop_result
+        bridge_launcher.launch_bridge = lambda: self.fail("replacement must not launch")
+        try:
+            result = bridge_launcher.restart_bridge()
+        finally:
+            bridge_control.request_bridge_stop = original_stop
+            bridge_launcher.launch_bridge = original_launch
+
+        self.assertIsNone(result.launch)
+
+    def test_no_existing_bridge_still_launches_one(self):
+        stop_result = bridge_control.StopResult(bridge_control.StopOutcome.NO_RUNNING_BRIDGE)
+        launch_result = bridge_launcher.LaunchResult(
+            bridge_launcher.LaunchOutcome.STARTED, ("exe",), pid=100
+        )
+        original_stop = bridge_control.request_bridge_stop
+        original_launch = bridge_launcher.launch_bridge
+        bridge_control.request_bridge_stop = lambda timeout: stop_result
+        bridge_launcher.launch_bridge = lambda: launch_result
+        try:
+            result = bridge_launcher.restart_bridge()
+        finally:
+            bridge_control.request_bridge_stop = original_stop
+            bridge_launcher.launch_bridge = original_launch
+
+        self.assertIs(result.launch, launch_result)
 
 
 if __name__ == "__main__":

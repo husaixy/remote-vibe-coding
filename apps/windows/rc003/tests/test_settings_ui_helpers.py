@@ -20,6 +20,7 @@ from ovb_rc003.settings_ui import (
     build_save_model,
     default_display_state,
     describe_launch_result,
+    describe_restart_result,
     describe_log_open_result,
     voice_hotkey_for_trigger_mode,
 )
@@ -427,6 +428,29 @@ class DescribeLaunchResultTests(unittest.TestCase):
         self.assertIn("WinError 2", text)
         self.assertIn("日志", text)
 
+
+class DescribeRestartResultTests(unittest.TestCase):
+    def test_success_reports_old_bridge_stopped_before_new_pid(self):
+        result = bridge_launcher.RestartResult(
+            stop=bridge_launcher.bridge_control.StopResult(
+                bridge_launcher.bridge_control.StopOutcome.STOPPED
+            ),
+            launch=bridge_launcher.LaunchResult(
+                bridge_launcher.LaunchOutcome.STARTED, ("exe",), pid=321
+            ),
+        )
+        text = describe_restart_result(result)
+        self.assertIn("已断开并停止旧桥接", text)
+        self.assertIn("321", text)
+
+    def test_timeout_reports_no_replacement(self):
+        result = bridge_launcher.RestartResult(
+            stop=bridge_launcher.bridge_control.StopResult(
+                bridge_launcher.bridge_control.StopOutcome.TIMED_OUT
+            )
+        )
+        text = describe_restart_result(result)
+        self.assertIn("新桥接未启动", text)
 
 class DescribeLogOpenResultTests(unittest.TestCase):
     def test_opened_ready_mentions_the_directory(self):

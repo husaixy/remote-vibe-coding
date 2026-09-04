@@ -91,6 +91,7 @@ def _dry_run() -> int:
         audio_output,
         audio_playback,
         ble_transport_winrt,
+        bridge_control,
         bridge_launcher,
         config,
         connection_supervisor,
@@ -137,7 +138,7 @@ def _run_bridge() -> None:
     exit rather than silently disappearing.
     """
 
-    from . import app, config, device_catalog, single_instance
+    from . import app, bridge_control, config, device_catalog, single_instance
 
     selected_device_id = device_catalog.normalize_device_id(
         config.load_config(config.config_path()).get("selected_device_profile")
@@ -150,9 +151,19 @@ def _run_bridge() -> None:
         )
         return
 
+    def signal_stopped(control_owner) -> None:
+        try:
+            control_owner.mark_stopped()
+        except bridge_control.BridgeControlUnavailableError as exc:
+            print(f"bridge stopped notification failed: {exc}", file=sys.stderr)
+        finally:
+            control_owner.close()
+
+    control = None
     try:
         with single_instance.BridgeInstanceGuard():
-            app.main()
+            control = bridge_control.BridgeControlOwner()
+            app.main(stop_requested=control.stop_requested)
     except single_instance.DuplicateInstanceError as exc:
         single_instance.show_bridge_startup_blocked_notice(str(exc))
         raise SystemExit(single_instance.DUPLICATE_INSTANCE_EXIT_CODE)
@@ -175,6 +186,19 @@ def _run_bridge() -> None:
             "Task Manager for a lingering process before retrying."
         )
         raise SystemExit(single_instance.CLEANUP_FAILED_EXIT_CODE)
+    except bridge_control.BridgeControlUnavailableError:
+        single_instance.show_bridge_startup_blocked_notice(
+            "Remote Vibe Coding could not create its bridge restart control channel, "
+            "so the bridge did not start. Close existing instances and try again."
+        )
+        raise SystemExit(single_instance.GUARD_UNAVAILABLE_EXIT_CODE)
+    except BaseException:
+        if control is not None:
+            signal_stopped(control)
+        raise
+    else:
+        if control is not None:
+            signal_stopped(control)
 
 
 def main() -> None:

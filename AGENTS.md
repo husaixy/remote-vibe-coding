@@ -13,6 +13,14 @@
 - 提交前运行 `git diff --check` 和相关测试；涉及桌面打包时运行 Windows 候选构建。
 - 不提交 `.venv/`、`dist/`、`target/`、`node_modules/`、日志、诊断原始记录、真实设备标识、语音数据或第三方驱动安装包。
 
+## 版本与提交管理
+
+- 版本号遵循 SemVer。日常功能与修复先记录在 `apps/windows/rc003/CHANGELOG.md` 的 `Unreleased`；只有准备候选版或正式发布时才提升版本号并创建 tag。
+- 发布改版时同步检查 `apps/windows/rc003/src/ovb_rc003/__init__.py`、`apps/windows/rc003/pyproject.toml` 和 `apps/windows/rc003/installer/RemoteMicRC003Setup.iss`，不得让包版本、应用版本和安装器版本无说明地漂移。
+- 每个新增功能、修复或文档规则形成目的明确、可独立审查的提交；不要把无关改动混入同一提交。提交说明使用 `feat:`、`fix:`、`docs:`、`test:`、`chore:` 等前缀说明性质。
+- 新功能完成后必须先更新测试与 `CHANGELOG.md`，执行相关验证和 `git diff --check`，再提交到当前功能分支；未经用户明确要求不推送、不发布、不改写历史。
+- 候选版 tag 使用 `v<内部版本>-windows-rc003-candidate.<序号>`，正式版 tag 使用 `v<内部版本>-windows`；tag 必须指向已完成构建与验证的干净提交。
+
 ## 许可证与归属
 
 - 项目继续按 `GPL-3.0-only` 发布，必须保留 `LICENSE.md`、`COPYRIGHT.md`、`THIRD_PARTY_NOTICES.md` 和 `apps/windows/rc003/ATTRIBUTION.md`。

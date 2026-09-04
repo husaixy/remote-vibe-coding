@@ -1290,7 +1290,7 @@ def _load_qt_classes() -> dict:
         @Slot()
         def saveAndLaunch(self) -> None:
             """Saves first (using the exact same validation as
-            "保存并应用"), and only launches the bridge if that save
+            "保存并应用"), and only restarts the bridge if that save
             actually succeeded - a rejected mapping/hotkey must never be
             silently followed by starting the bridge with stale config
             anyway (unchanged XRBM-029 contract, now driven from QML).
@@ -1303,9 +1303,9 @@ def _load_qt_classes() -> dict:
                     "DJI Mic 2 使用 Windows 系统录音输入，不启动 RC003 BLE/HID/ATVV 桥。"
                 )
                 return
-            self._set_launch_status("正在启动…")
-            result = bridge_launcher.launch_bridge()
-            self._set_launch_status(settings_ui.describe_launch_result(result))
+            self._set_launch_status("正在断开旧桥接并重启…")
+            result = bridge_launcher.restart_bridge()
+            self._set_launch_status(settings_ui.describe_restart_result(result))
 
         @Slot()
         def restoreDefaults(self) -> None:
