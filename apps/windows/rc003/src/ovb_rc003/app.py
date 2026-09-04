@@ -124,13 +124,6 @@ class RC003App:
         # cannot race into two host shortcut deliveries.
         self._voice_trigger_lock = threading.Lock()
         self._voice_raw_input_trigger_pending = False
-        # When the built-in HOLD shortcut is selected, the low-level F5 hook
-        # can deliver one right-Alt edge through the physicalized low-level
-        # hook path. Keep this separate from VoiceController's logical state so
-        # the normal audio/ATVV lifecycle still deduplicates correctly without
-        # sending a second host shortcut.
-        self._voice_legacy_transform_key_down = False
-        self._voice_legacy_transform_session = False
         self._legacy_f5_is_down = False
         self._ble_session: Optional[ble_transport_winrt.RC003BleSession] = None
         self._hid_listener: Optional[raw_input_windows.RawInputButtonListener] = None
@@ -244,15 +237,14 @@ class RC003App:
             return
 
         # RC003's voice key is reported by Windows' keyboard class as F5 as
-        # well as through ATVV. When the device-scoped HID tap confirms the
-        # microphone usage, the hook forwards that physical record to later
-        # hooks as right Alt. This preserves WeChat Input Method's focused
-        # editor context instead of opening its detached status-bar panel.
+        # well as through ATVV. Swallow that legacy F5 and route the edge into
+        # the voice state machine; the configured shortcut is emitted through
+        # win32_input's marked/physicalized path instead of rewriting this hook
+        # record in place.
         self._legacy_key_suppressor = legacy_key_suppressor_windows.LegacyKeySuppressor(
             {0x74},
             on_key_event=self._on_legacy_key_event,
             on_untranslated_key_event=self._on_legacy_untranslated_key_event,
-            on_key_transform=self._transform_legacy_voice_key,
             rc003_vk_codes=frozenset(raw_input_windows.KEYBOARD_VK_TO_BUTTON) | {0xFF},
             untranslated_key_signatures=frozenset({(0xFF, 0x6A, True)}),
             consume_wait_seconds=0.100,
@@ -263,10 +255,6 @@ class RC003App:
             self._logger.info(
                 "startup: RC001/RC003 untranslated back-key fallback enabled"
             )
-            if self._legacy_voice_transform_enabled():
-                self._logger.info(
-                    "startup: RC003-confirmed F5 voice edge forwards as physical right Alt"
-                )
         except legacy_key_suppressor_windows.LegacyKeySuppressorUnavailableError as exc:
             self._logger.warning("startup: RC003 voice legacy-key guard unavailable: %s", exc)
             self._legacy_key_suppressor = None
@@ -411,8 +399,6 @@ class RC003App:
                     # isn't forgotten (XRBM-019 review round 1 P1 #4).
                     self._voice.restore_pending(reset_action)
                     failures.append("voice hotkey release did not fully deliver; state retained")
-                self._voice_legacy_transform_key_down = False
-                self._voice_legacy_transform_session = False
                 self._legacy_f5_is_down = False
         except Exception:
             self._logger.exception("cleanup: releasing the voice hotkey failed")
@@ -474,52 +460,6 @@ class RC003App:
         self._logger.info("ATVV protocol error, requesting reconnect: %s", exc)
         self._supervisor.request_reconnect()
 
-    def _legacy_voice_transform_enabled(self) -> bool:
-        """Whether the selected preset can use the physical right-Alt path."""
-
-        return (
-            self._voice.trigger_mode == key_mapping.VoiceTriggerMode.HOLD
-            and self._voice_hotkey.serialize() == "ralt"
-        )
-
-    def _transform_legacy_voice_key(
-        self, vk_code: int, is_pressed: bool
-    ) -> Optional[legacy_key_suppressor_windows.PhysicalKeyTarget]:
-        """Replace a physical RC003 F5 edge with one physical right-Alt edge.
-
-        The callback runs inside the low-level hook.  It deliberately only
-        arms a new down edge while no voice trigger is already in flight; a
-        matching up edge is still transformed after the app has marked the
-        session active.  This prevents a Raw Input duplicate from opening a
-        second host shortcut while preserving the hold/release pair.
-        """
-
-        if vk_code != 0x74 or not self._legacy_voice_transform_enabled():
-            return None
-        if is_pressed:
-            with self._direct_hid_lock:
-                remote_mic_is_down = 0x003E in self._direct_hid_usages
-            if not remote_mic_is_down:
-                return None
-            if (
-                self._voice.active
-                or self._voice_raw_input_trigger_pending
-                or self._voice_legacy_transform_key_down
-                or self._legacy_f5_is_down
-            ):
-                return None
-            self._voice_legacy_transform_key_down = True
-        elif not self._voice_legacy_transform_key_down:
-            return None
-        else:
-            self._voice_legacy_transform_key_down = False
-        return legacy_key_suppressor_windows.PhysicalKeyTarget(
-            vk_code=0xA5,
-            scan_code=0x38,
-            extended=True,
-            system_key=True,
-        )
-
     def _on_legacy_key_event(self, vk_code: int, is_pressed: bool) -> None:
         """Use the already-suppressed physical F5 leak as a voice edge.
 
@@ -542,18 +482,11 @@ class RC003App:
                 self._logger.info(
                     "voice legacy F5 trigger received from low-level keyboard hook"
                 )
-                if self._voice_legacy_transform_key_down:
-                    self._voice_legacy_transform_session = True
             elif not self._legacy_f5_is_down:
                 return
             else:
                 self._legacy_f5_is_down = False
-            host_action_handled = self._voice_legacy_transform_session
-            self._on_button_event(
-                "mic",
-                is_pressed,
-                host_action_handled=host_action_handled,
-            )
+            self._on_button_event("mic", is_pressed)
 
     def _on_legacy_untranslated_key_event(
         self,
@@ -639,9 +572,7 @@ class RC003App:
         self._bindings_mtime_ns = current_mtime_ns
         self._logger.info("settings mappings reloaded from disk")
 
-    def _on_button_event(
-        self, button_id: str, is_pressed: bool, *, host_action_handled: bool = False
-    ) -> None:
+    def _on_button_event(self, button_id: str, is_pressed: bool) -> None:
         self._reload_bindings_if_changed()
         if button_id == "mic":
             if not is_pressed:
@@ -665,10 +596,7 @@ class RC003App:
                 self._logger.info(
                     "voice physical mic trigger received before audio start"
                 )
-                self._handle_mic_button_pressed(
-                    send_device_open=False,
-                    host_action_handled=host_action_handled,
-                )
+                self._handle_mic_button_pressed(send_device_open=False)
                 if not self._voice.active:
                     self._voice_raw_input_trigger_pending = False
             return
@@ -813,31 +741,17 @@ class RC003App:
                     )
                     self._handle_mic_button_pressed(send_device_open=False)
                 else:
-                    if self._legacy_voice_transform_enabled():
-                        self._logger.info(
-                            "voice mic trigger received from ATVV; waiting for physical F5"
-                        )
-                        self._voice_audio_started_waiting_for_legacy_f5 = True
-                        self._open_playback_for_new_session()
-                    else:
-                        self._logger.info("voice mic trigger received from ATVV control channel")
-                        self._handle_mic_button_pressed()
+                    self._logger.info("voice mic trigger received from ATVV control channel")
+                    self._handle_mic_button_pressed()
         elif isinstance(event, AudioStarted):
             with self._voice_trigger_lock:
                 self._logger.info("voice audio started")
                 self._voice_pcm_stats.reset()
                 self._voice_audio_start_fallback_pending = False
                 if not self._voice.active:
-                    if self._legacy_voice_transform_enabled():
-                        self._logger.info(
-                            "voice audio started before F5; waiting for physical mic edge"
-                        )
-                        self._voice_audio_started_waiting_for_legacy_f5 = True
-                        self._open_playback_for_new_session()
-                    else:
-                        self._logger.info("voice audio start used as microphone trigger")
-                        self._handle_mic_button_pressed(send_device_open=False)
-                        self._voice_audio_start_fallback_pending = self._voice.active
+                    self._logger.info("voice audio start used as microphone trigger")
+                    self._handle_mic_button_pressed(send_device_open=False)
+                    self._voice_audio_start_fallback_pending = self._voice.active
         elif isinstance(event, AudioStopped):
             with self._voice_trigger_lock:
                 self._logger.info("voice audio stopped")
@@ -862,14 +776,11 @@ class RC003App:
                 self._voice_audio_started_waiting_for_legacy_f5 = False
                 self._voice_raw_input_trigger_pending = False
                 action = self._voice.on_audio_stopped()
-                transformed_session = self._voice_legacy_transform_session
                 action_applied = (
                     True
                     if action is None
                     else self._apply_voice_action(action)
                 )
-                if transformed_session:
-                    self._voice_legacy_transform_session = False
                 if action is not None and not action_applied:
                     # Same rule as _cleanup_once(): on_audio_stopped() already
                     # cleared the controller's pending state before we knew
@@ -890,7 +801,6 @@ class RC003App:
         self,
         *,
         send_device_open: bool = True,
-        host_action_handled: bool = False,
     ) -> None:
         """Resolve and open the user-selected output endpoint FIRST; only
         send the hotkey if that succeeds, and only send MIC_OPEN if the
@@ -916,15 +826,7 @@ class RC003App:
             return
 
         action = self._voice.on_mic_button_pressed()
-        action_delivered = (
-            True
-            if host_action_handled
-            else self._apply_voice_action(action)
-        )
-        if host_action_handled:
-            self._logger.info(
-                "voice host shortcut already handled by physical F5-to-right-Alt transform"
-            )
+        action_delivered = self._apply_voice_action(action)
         if not action_delivered:
             # Nothing physically landed (win32_input.py's own batching
             # already rolled back any partial key-down) - clear the
@@ -943,11 +845,7 @@ class RC003App:
         tokens = tuple(self._voice_hotkey.modifiers) + (self._voice_hotkey.key,)
         if (
             self._voice.trigger_mode == key_mapping.VoiceTriggerMode.HOLD
-            and not self._voice_legacy_transform_session
-            and (
-                tokens == ("ralt",)
-                or set(tokens) == {"lctrl", "lwin"}
-            )
+            and set(tokens) == {"lctrl", "lwin"}
             and action in {
                 voice_controller.VoiceHostAction.KEY_DOWN,
                 voice_controller.VoiceHostAction.KEY_UP,
@@ -964,23 +862,6 @@ class RC003App:
                 "voice WeChat Input Method status-bar path unavailable; "
                 "falling back to configured hotkey"
             )
-        if self._voice_legacy_transform_session:
-            if (
-                action == voice_controller.VoiceHostAction.KEY_UP
-                and self._voice_legacy_transform_key_down
-            ):
-                # The down edge was forwarded as a physical hook record, so
-                # an injected key-up would not be an equivalent pair. Keep
-                # the transform armed until the remote's real F5-up arrives.
-                self._logger.info(
-                    "voice audio stopped; awaiting physical F5-up to forward right Alt-up"
-                )
-                return True
-            self._logger.info(
-                "voice host action already delivered by physical F5-to-right-Alt transform: %s",
-                action.value,
-            )
-            return True
         try:
             if action == voice_controller.VoiceHostAction.TAP:
                 win32_input.send_voice_key_combo_tap(tokens)
