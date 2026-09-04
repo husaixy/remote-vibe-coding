@@ -1,4 +1,4 @@
-"""Remote Mic - RC003 Windows client (source/build candidate).
+"""Remote Vibe Coding - RC001/RC003 Windows client.
 
 Not yet real-device verified on Windows. See this package's top-level
 README.md "Known gaps" section for the full list of what remains

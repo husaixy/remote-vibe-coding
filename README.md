@@ -1,6 +1,8 @@
-# Remote Mic · Windows 版本（RC003）
+# Remote Vibe Coding
 
-这是 `miaomiaozii/windows-remote-mic-app` 仓库，面向小米蓝牙遥控器 2 Pro（RC003）的 Windows 蓝牙桥接软件：把遥控器的按键和语音转成 Windows 能识别的键盘按键与语音输入，从而在电脑上操控豆包、微信、WPS 等应用。macOS 应用、Swift 工程和 macOS 发布资源不属于本仓库。
+**Remote Vibe Coding（遥控语音编程）** 是面向 Windows 的遥控器交互工具。它把小米蓝牙遥控器 2 / 2 Pro（RC001 / RC003）的按键和语音转换成 Windows 能识别的输入，让用户离开键盘时也能快速唤起语音输入、操作 Codex，并完成常用的 vibe coding 流程。
+
+本项目派生自 [`miaomiaozii/windows-remote-mic-app`](https://github.com/miaomiaozii/windows-remote-mic-app)，继续采用 GPL-3.0-only 开源。当前版本保留并扩展其 Windows 蓝牙、按键映射和 ATVV 语音桥接能力；macOS 应用、Swift 工程和 macOS 发布资源不属于本仓库。
 
 Windows 客户端位于 [`apps/windows/rc003`](apps/windows/rc003/README.md)，提供：
 
@@ -13,6 +15,17 @@ Windows 客户端位于 [`apps/windows/rc003`](apps/windows/rc003/README.md)，�
 配对、逐键与语音链路验收（方向/OK/Home/Menu/TV/Power/返回/音量± 全部单次触发，
 麦克风键可启动豆包输入法并识别语音）。产物未签名；CI 和自动构建不能替代真实
 硬件验收。
+
+## 项目方向
+
+Remote Vibe Coding 将遥控器作为 Codex 的便携输入面板，优先建设以下能力：
+
+- 按住语音键说话，松开后结束，把语音可靠地送入输入法或 Codex 输入框；
+- 将方向、确认、返回和音量等实体键映射为 Codex 常用操作；
+- 提供可见、可修改、可恢复默认值的按键方案；
+- 只通过 Windows 公共 API、公开快捷键和用户可见界面协作，不读取第三方应用私有数据。
+
+现有功能和真机验收结论仍以本文及 Windows 客户端文档明确列出的范围为准；路线中的新功能会在完成代码、Windows 构建和真实遥控器验证后标记为可用。
 
 ## RC001 兼容适配
 
@@ -37,7 +50,7 @@ PCM。该结论不依赖相同外观或 VID/PID 推断；更多固件版本和�
 
 ## 下载与安装
 
-最新正式版：[v0.1.0-windows](https://github.com/miaomiaozii/windows-remote-mic-app/releases/tag/v0.1.0-windows)。
+当前可用的上游正式版：[v0.1.0-windows](https://github.com/miaomiaozii/windows-remote-mic-app/releases/tag/v0.1.0-windows)。Remote Vibe Coding 的独立发布版将在本仓库的 Releases 提供。
 
 从 Release 页面 Assets 下载，二选一：
 
@@ -52,7 +65,7 @@ PCM。该结论不依赖相同外观或 VID/PID 推断；更多固件版本和�
 ## 快速开始（安装版）
 
 1. 下载 `RemoteMicRC003Setup-...exe` 并运行，一路“下一步”完成安装；
-2. 首次运行，或双击开始菜单的“Remote Mic 设置”，打开设置窗口（连接页）；
+2. 首次运行，或双击开始菜单的“Remote Vibe Coding 设置”，打开设置窗口（连接页）；
 3. 在 Windows 设置 → 蓝牙中把 RC001 或 RC003 遥控器与电脑配对；
 4. 回到设置窗口的“连接”页，选择实际型号，再点“保存并启动桥接”；
 5. 按遥控器方向键/OK/返回/音量键验证；麦克风键会启动豆包输入法语音。
@@ -94,6 +107,7 @@ $env:PYTHONPATH = Join-Path (Get-Location) 'src'
 
 ## 仓库来源
 
+- **直接上游**：[`miaomiaozii/windows-remote-mic-app`](https://github.com/miaomiaozii/windows-remote-mic-app)。Remote Vibe Coding 从该项目的 Windows 分支继续开发，并保留其提交历史、GPL 许可证和来源说明。
 - **Fork 自**：[`HD838A/remote-mic-app`](https://github.com/HD838A/remote-mic-app)（无线麦 Remote Mic：把小米蓝牙遥控器 2 Pro / RC003 变成 Mac 语音输入设备）。本仓库只保留并继续维护其中的 Windows RC003 部分，macOS/Swift 部分不在此仓库维护。
 - **Windows 上游参考实现**：[`nijez/open-voice-bridge`](https://github.com/nijez/open-voice-bridge)（GPL-3.0-only），提供 WinRT BLE、ATVV 语音协议、Raw Input、SendInput 和 Qt/QML 设置页的参考实现。
 - **RC003 HID 旁路参考**：[`xxb26553663-star/remote-bridge-hub`](https://github.com/xxb26553663-star/remote-bridge-hub)（GPL-3.0-only），提供用 Frida Gadget 读取 Windows 普通输入链路拿不到的 RC003 返回/音量 HID 报告的实现思路。

@@ -2,7 +2,7 @@
 
 This is adapted from remote-bridge-hub's Xiaomi injector.  Injection is only
 attempted from a process the user has explicitly started with administrator
-rights.  The normal Remote Mic process never elevates itself.
+rights.  The normal Remote Vibe Coding process never elevates itself.
 """
 
 from __future__ import annotations

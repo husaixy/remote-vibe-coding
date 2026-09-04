@@ -1,4 +1,4 @@
-Remote Mic · RC003（Windows 源码/构建候选）
+Remote Vibe Coding（Windows 源码/构建候选）
 ====================================================
 
 状态：本安装包是一个尚未经过 Windows 真机验收的源码/构建候选，不代表
@@ -28,7 +28,7 @@ Xiaomi 蓝牙遥控器 2 Pro / RC003 已在 Windows 上完整实现或验收通�
 1. 运行 RemoteMicRC003Setup-<版本号>-unsigned.exe；
 2. 安装程序只安装到当前用户目录（%LOCALAPPDATA%\RemoteMic\RC003），
    不请求管理员权限，不设置开机自动启动，不安装任何驱动；
-3. 安装完成后可以勾选"打开 Remote Mic · RC003 设置"，但安装程序
+3. 安装完成后可以勾选"打开 Remote Vibe Coding 设置"，但安装程序
    不会自动以无参数方式启动语音桥接——桥接模式需要你在 Start Menu 中显式
    点击"启动"，或者在设置窗口底部"桥接控制"区域点击"保存并启动桥接"。
 
@@ -49,7 +49,7 @@ Xiaomi 蓝牙遥控器 2 Pro / RC003 已在 Windows 上完整实现或验收通�
 
 安装完成后按下面的方向手动配置——方向不能弄反：
 
-  - Remote Mic 的"语音输出设备"设置项  →  选择 "CABLE Input"
+  - Remote Vibe Coding 的"语音输出设备"设置项  →  选择 "CABLE Input"
     （VB-CABLE 的虚拟"扬声器"一侧）；
   - 语音识别/听写软件的麦克风输入设置          →  选择 "CABLE Output"
     （VB-CABLE 的虚拟"麦克风"一侧）。
@@ -72,8 +72,8 @@ SHA-256 校验过的官方 VBCABLE_Driver_Pack45.zip，并以 Windows 用户账�
 
 首次使用
 --------
-1. 打开"设置"（Start Menu 中的"Remote Mic · RC003"或
-   "Remote Mic · RC003 设置"，两者都会直接打开设置窗口）。设置窗口
+1. 打开"设置"（Start Menu 中的"Remote Vibe Coding"或
+   "Remote Vibe Coding 设置"，两者都会直接打开设置窗口）。设置窗口
    分"连接""按键""权限""检查与修复"四个页面：本节下面的步骤在"连接"页
    完成；按键映射在"按键"页完成（见下方"默认按键映射"一节），点击遥控器
    实物图上的按键或右侧映射列表中的一行都可以互相定位、高亮同一个按键；
@@ -88,7 +88,7 @@ SHA-256 校验过的官方 VBCABLE_Driver_Pack45.zip，并以 Windows 用户账�
      - 在设置窗口底部"桥接控制"区域点击"保存并启动桥接"——会先执行和
        "保存并应用"完全相同的校验并保存设置，只有校验通过才会启动桥接；
      - 或者先点"保存并应用"，关闭设置窗口，再从 Start Menu 选择"启动
-       Remote Mic · RC003"。
+       Remote Vibe Coding"。
    "桥接控制"区域会显示以下四种状态之一：未启动、已启动/运行中、已经在
    运行（检测到重复启动、被单实例保护拒绝）、启动异常或快速退出（会附带
    真实的退出码）。这里的"运行中"只表示桥接进程本身还存活，**不代表已经
@@ -122,12 +122,12 @@ SHA-256 校验过的官方 VBCABLE_Driver_Pack45.zip，并以 Windows 用户账�
 
 停止 / 重启
 -----------
-- 从 Start Menu 选择"停止 Remote Mic · RC003"可以随时停止桥接；
-- 重新从 Start Menu 选择"启动 Remote Mic · RC003"即可再次启动。
+- 从 Start Menu 选择"停止 Remote Vibe Coding"可以随时停止桥接；
+- 重新从 Start Menu 选择"启动 Remote Vibe Coding"即可再次启动。
 
 卸载
 ----
-从 Windows"设置 → 应用"，或 Start Menu 的"卸载 Remote Mic · RC003"
+从 Windows"设置 → 应用"，或 Start Menu 的"卸载 Remote Vibe Coding"
 条目卸载。卸载过程会先自动停止正在运行的桥接进程，再删除安装时写入
 的程序文件；不会触碰你系统上的蓝牙配对记录，也不会触碰你自行安装的
 任何虚拟音频驱动。

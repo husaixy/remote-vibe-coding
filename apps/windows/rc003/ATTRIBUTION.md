@@ -1,24 +1,28 @@
-# Windows 版归属与改动说明
+# Remote Vibe Coding 归属与改动说明
 
 本目录中的 Windows RC003 客户端基于以下 GPL-3.0-only 项目改造：
 
 - 上游项目：[`nijez/open-voice-bridge`](https://github.com/nijez/open-voice-bridge)
 - 上游 Windows 实现：`apps/windows/rc003/`
-- 本仓库：[`miaomiaozii/windows-remote-mic-app`](https://github.com/miaomiaozii/windows-remote-mic-app)
+- 直接上游：[`miaomiaozii/windows-remote-mic-app`](https://github.com/miaomiaozii/windows-remote-mic-app)
+- 本派生项目：Remote Vibe Coding（遥控语音编程）
 
 上游项目已经提供了 RC003 的 Windows 参考实现，包括 WinRT BLE、ATVV 语音协议、
 Windows Raw Input、SendInput、PortAudio 音频输出、Qt/QML 设置页、诊断、测试和
-PyInstaller/Inno Setup 构建流程。本仓库在 GPL-3.0-only 条件下保留并适配这些能力，
-并做了以下面向 Remote Mic 的改动：
+PyInstaller/Inno Setup 构建流程。Remote Vibe Coding 在 GPL-3.0-only 条件下保留
+并适配这些能力，在上述项目基础上继续开发，并做了以下改动：
 
-- 应用、配置目录、互斥锁、安装器和发布产物统一使用 `Remote Mic` 名称；
+- 面向用户的应用标题、安装器和文档使用 `Remote Vibe Coding` 名称；
+- 现阶段保留 `RemoteMicRC003.exe`、`RemoteMic` 配置目录、互斥锁和 `ovb_rc003`
+  Python 包名，以兼容既有安装、设置和单实例行为；这些技术标识会在有迁移方案后再调整；
+- 明确以遥控器快捷操作 Codex 和按住说话为后续产品方向；
 - 适配本仓库现有的 `LICENSE.md`、`COPYRIGHT.md` 和第三方声明文件；
 - 补充中文安装、配对、VB-CABLE 配置、按键映射和故障排查说明；
 - 保留上游的失败关闭策略、隐私约束、跨平台协议测试和 Windows CI 校验；
 - 明确声明当前候选版本已完成真实 RC003 硬件配对、逐键和语音链路验收；验收不能
   被自动构建或 CI 替代。
 
-源码中仍保留 `ovb_rc003` 这一内部 Python 包名，以减少从上游同步修复时的差异；
+源码中仍保留 `ovb_rc003` 这一内部 Python 包名，以兼容现有安装并减少从上游同步修复时的差异；
 它不是用户看到的应用名称。上游源码及其 GPL 许可适用于本目录中的派生代码，
 本仓库根目录的 [`LICENSE.md`](../../../LICENSE.md) 是随源码发布的完整许可证。
 

@@ -1,4 +1,4 @@
-# PyInstaller spec for Remote Mic · RC003 (Windows source/build candidate).
+# PyInstaller spec for Remote Vibe Coding (Windows source/build candidate).
 #
 # One-dir build (COLLECT), matching the layout pattern this project's
 # upstream reference uses for its own standalone products, minus everything

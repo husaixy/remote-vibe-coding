@@ -1,4 +1,4 @@
-# Remote Mic — Windows client (RC003)
+# Remote Vibe Coding — Windows client (RC001 / RC003)
 
 > **状态：已通过真实硬件验收的源码/构建候选。** 本目录包含
 > 跨平台协议测试，以及针对 WinRT BLE、Raw Input、SendInput 和 PortAudio 的
@@ -150,7 +150,7 @@ Windows 默认输入/输出设备。如果要让语音识别/听写软件把 RC0
 [VB-CABLE](https://vb-audio.com/Cable/)，然后按下面的方向手动配置——
 方向不能弄反：
 
-- Remote Mic 的"语音输出设备"设置项 → 选择 `CABLE Input`
+- Remote Vibe Coding 的"语音输出设备"设置项 → 选择 `CABLE Input`
   （VB-CABLE 虚拟"扬声器"一侧）；
 - 语音识别/听写软件的麦克风输入设置 → 选择 `CABLE Output`
   （VB-CABLE 虚拟"麦克风"一侧）。
@@ -204,13 +204,13 @@ VB-CABLE 虚拟音频驱动"卡片会显示 CABLE Input/CABLE Output 两个端�
 
 **安装器用户**
 
-1. 打开"设置"（Start Menu 中的"Remote Mic · RC003"或
-   "Remote Mic · RC003 设置"），在"语音输出设备"下拉框中选择
+1. 打开"设置"（Start Menu 中的"Remote Vibe Coding"或
+   "Remote Vibe Coding 设置"），在"语音输出设备"下拉框中选择
    上一节配置好的端点；
 2. 启动桥接有两种等价方式：在设置窗口底部"桥接控制"区域点击"保存并
    启动桥接"（会先用和"保存并应用"完全相同的校验保存设置，校验通过后
    才启动桥接进程），或者关闭设置窗口后从 Start Menu 选择"启动
-   Remote Mic · RC003"（它会以 `--bridge` 参数启动桥接）。"桥接控制"区域会显示以下四种状态之一：
+   Remote Vibe Coding"（它会以 `--bridge` 参数启动桥接）。"桥接控制"区域会显示以下四种状态之一：
    未启动、已启动/运行中、已经在运行（检测到重复启动）、启动异常或
    快速退出（附带真实退出码）——"运行中"只说明桥接进程本身存活，
    **不代表已经与 RC003 建立连接**，实际连接、按键和语音状态仍以下一步
@@ -229,9 +229,9 @@ VB-CABLE 虚拟音频驱动"卡片会显示 CABLE Input/CABLE Output 两个端�
    如果目标是 **微信输入法的语音输入**，请选择“长按”触发方式，
    再把组合键录入为 `lctrl+lwin`（左 Ctrl + 左 Win）。微信输入法的免按住方式可改用
    `lctrl+lwin+lshift`。这些组合键属于用户自定义值，程序会原样保存，不会再迁移为
-   豆包的右 Alt。微信输入法仍需把麦克风输入设为 `CABLE Output`；Remote Mic 的语音输出则
+   豆包的右 Alt。微信输入法仍需把麦克风输入设为 `CABLE Output`；Remote Vibe Coding 的语音输出则
    必须选择 `CABLE Input`，两端方向不能反；
-5. 需要时从 Start Menu 选择"停止 Remote Mic · RC003"结束桥接，
+5. 需要时从 Start Menu 选择"停止 Remote Vibe Coding"结束桥接，
    或从"设置 → 应用"/Start Menu 的"卸载"条目卸载（卸载会先自动停止
    正在运行的进程，再删除安装时写入的程序文件）。遇到按键/语音/启动
    问题时，可以在设置窗口点击"打开日志目录"直接定位到
@@ -318,7 +318,8 @@ Windows 客户端围绕 RC003 使用场景实现，主要功能如下：
 
 源码入口位于 `apps/windows/rc003/src/ovb_rc003`，内部 Python 包名仍保留
 `ovb_rc003`，这是为了便于持续吸收上游 Windows RC003 的修复；用户可见的产品名、
-可执行文件名、安装器名称和文档均使用 Remote Mic。
+面向用户的应用名称和文档使用 Remote Vibe Coding。为兼容已有安装与设置，当前仍保留
+`RemoteMicRC003.exe`、安装产物文件名以及 `%LOCALAPPDATA%\\RemoteMic\\RC003` 配置路径。
 
 运行流程大致如下：
 

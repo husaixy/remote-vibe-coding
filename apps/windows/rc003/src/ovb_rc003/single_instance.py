@@ -241,7 +241,7 @@ class BridgeInstanceGuard:
         if result.last_error == _ERROR_ALREADY_EXISTS:
             close_failure = self._safe_close(result.handle)
             message = (
-                "another Remote Mic RC003 instance is already "
+                "another Remote Vibe Coding instance is already "
                 "running in this Windows session"
             )
             if close_failure:
@@ -314,7 +314,7 @@ def _real_message_box(title: str, message: str) -> int:
 def show_bridge_startup_blocked_notice(
     message: str,
     *,
-    title: str = "Remote Mic · RC003",
+    title: str = "Remote Vibe Coding",
     _message_box: Callable[[str, str], int] = _real_message_box,
 ) -> None:
     """Shows a visible Windows message box for a bridge launch the
@@ -332,4 +332,4 @@ def show_bridge_startup_blocked_notice(
     try:
         _message_box(title, message)
     except Exception:
-        print(f"Remote Mic RC003: {message}", file=sys.stderr)
+        print(f"Remote Vibe Coding: {message}", file=sys.stderr)

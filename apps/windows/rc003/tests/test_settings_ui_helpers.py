@@ -67,7 +67,7 @@ class DisplayRoundTripTests(unittest.TestCase):
 
     def test_reference_open_app_labels_round_trip_to_semantic_actions(self):
         expected = {
-            "打开无线麦": key_mapping.ActionKind.OPEN_REMOTE_MIC,
+            "打开 Remote Vibe Coding": key_mapping.ActionKind.OPEN_REMOTE_MIC,
             "打开 Codex": key_mapping.ActionKind.OPEN_CODEX,
             "打开 Claude": key_mapping.ActionKind.OPEN_CLAUDE,
             "打开 cmux": key_mapping.ActionKind.OPEN_CMUX,

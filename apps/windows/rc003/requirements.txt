@@ -1,4 +1,4 @@
-# Runtime dependencies for the Remote Mic · RC003 Windows client.
+# Runtime dependencies for the Remote Vibe Coding Windows client.
 #
 # All of these are optional at import time within ovb_rc003 (every module
 # that needs one guards the import and raises a clear "*Unavailable* error

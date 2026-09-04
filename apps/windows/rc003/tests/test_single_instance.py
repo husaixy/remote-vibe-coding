@@ -414,7 +414,7 @@ class ShowBridgeStartupBlockedNoticeTests(unittest.TestCase):
         )
         self.assertEqual(len(calls), 1)
         title, message = calls[0]
-        self.assertIn("Remote Mic", title)
+        self.assertIn("Remote Vibe Coding", title)
         self.assertEqual(message, "custom duplicate message")
 
     def test_falls_back_to_stderr_when_the_message_box_itself_fails(self):

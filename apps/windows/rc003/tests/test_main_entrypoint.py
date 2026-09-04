@@ -94,7 +94,7 @@ class BridgeModeRoutingTests(_ArgvRestoringTestCase):
 
         self.assertEqual(len(notice_calls), 1)
         self.assertIn("DJI Mic 2", notice_calls[0][0])
-        self.assertEqual(notice_calls[0][1]["title"], "Remote Mic")
+        self.assertEqual(notice_calls[0][1]["title"], "Remote Vibe Coding")
 
     def test_bridge_flag_calls_app_main_exactly_once_on_first_owner(self):
         app_main_calls = []

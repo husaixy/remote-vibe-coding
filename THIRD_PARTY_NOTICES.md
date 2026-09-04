@@ -59,4 +59,4 @@ VB-CABLE as the Windows default device. Audio is written only to the endpoint ex
 `apps/windows/rc003/build/fetch-vb-cable.ps1` downloads and hash-verifies the
 official package only as an explicit build step. At runtime, installation is
 available only after an explicit user click and a real Windows UAC prompt; the
-Remote Mic process never runs with administrator privileges and never reports a driver install as successful merely because a process was launched.
+The Remote Vibe Coding process never runs with administrator privileges and never reports a driver install as successful merely because a process was launched.

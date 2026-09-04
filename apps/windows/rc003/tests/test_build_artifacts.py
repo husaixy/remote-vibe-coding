@@ -1052,7 +1052,8 @@ class RootDocumentConsistencyTests(unittest.TestCase):
         self.notices_text = _THIRD_PARTY_NOTICES_PATH.read_text(encoding="utf-8")
 
     def test_root_readme_does_not_lump_windows_in_with_planned_research(self):
-        self.assertIn("Windows 版本（RC003）", self.root_readme_text)
+        self.assertIn("# Remote Vibe Coding", self.root_readme_text)
+        self.assertIn("RC001 / RC003", self.root_readme_text)
         self.assertIn("Windows 客户端位于", self.root_readme_text)
         self.assertIn("源码/构建候选", self.root_readme_text)
         self.assertIn("不能替代", self.root_readme_text)

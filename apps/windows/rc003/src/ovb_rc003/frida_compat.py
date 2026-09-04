@@ -4,7 +4,7 @@ Windows' normal keyboard stack does not expose the RC003 usages for Back and
 the two volume buttons.  The original ``remote-bridge-hub`` Windows client
 solves that by observing the completed HID read inside the RC003 WUDF host via
 a verified Frida Gadget.  This module reuses that narrow transport and keeps
-button policy in the existing Remote Mic application.
+button policy in the existing Remote Vibe Coding application.
 
 The tap is deliberately optional.  Without the explicitly fetched, SHA256
 verified Gadget archive the normal BLE/Raw Input client still starts, while

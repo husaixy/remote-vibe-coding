@@ -1,4 +1,4 @@
-; Inno Setup source for Remote Mic · RC003 (Windows source/build
+; Inno Setup source for Remote Vibe Coding (Windows source/build
 ; candidate). Unsigned. Not yet real-device verified - see this
 ; subtree's top-level README.md "Known gaps" section before treating
 ; this as a supported release artifact.
@@ -22,8 +22,8 @@
 ;   - No Frida binary is included (none is ever bundled - see
 ;     ovb_rc003/frida_compat.py).
 
-#define AppName "Remote Mic · RC003"
-#define AppPublisher "Remote Mic contributors"
+#define AppName "Remote Vibe Coding"
+#define AppPublisher "Remote Vibe Coding contributors"
 #define AppVersion "0.1.0-candidate"
 #define AppExeName "RemoteMicRC003.exe"
 #define AppFolder "RC003"
@@ -35,7 +35,7 @@ AppName={#AppName}
 AppVersion={#AppVersion}
 AppPublisher={#AppPublisher}
 DefaultDirName={localappdata}\RemoteMic\{#AppFolder}
-DefaultGroupName=Remote Mic
+DefaultGroupName=Remote Vibe Coding
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible

@@ -1,10 +1,11 @@
 # Copyright
 
-**Remote Mic · Windows RC003**
+**Remote Vibe Coding**
 
-Copyright (C) 2026 Remote Mic contributors
+Copyright (C) 2026 Remote Vibe Coding contributors
 
-本仓库当前只维护 Windows RC003 客户端。它基于 GPL-3.0-only 项目
+本仓库当前维护面向 Codex 遥控操作的 Windows RC001/RC003 客户端。它直接派生自
+[`miaomiaozii/windows-remote-mic-app`](https://github.com/miaomiaozii/windows-remote-mic-app)，并基于 GPL-3.0-only 项目
 [`nijez/open-voice-bridge`](https://github.com/nijez/open-voice-bridge) 的 Windows
 RC003 实现，并结合本仓库的应用名称、配置目录、中文文档、构建流程和测试边界进行
 改造。来源和改动说明见

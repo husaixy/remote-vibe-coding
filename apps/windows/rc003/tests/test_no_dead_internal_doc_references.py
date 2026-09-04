@@ -91,7 +91,6 @@ class NoDeadInternalDocReferencesTests(unittest.TestCase):
                 relative_str.startswith(_GITIGNORED_DOC_PREFIXES),
                 f"git ls-files unexpectedly returned a gitignored doc path: {relative_str}",
             )
-            self.assertNotEqual(relative_str, "AGENTS.md")
 
 
 if __name__ == "__main__":

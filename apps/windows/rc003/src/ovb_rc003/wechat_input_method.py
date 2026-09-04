@@ -2,7 +2,7 @@
 
 WeChat Input Method intentionally ignores synthetic ``Ctrl+Win`` events in
 some foreground applications, even though its own toolbar remains available.
-For the exact hold-to-talk preset, Remote Mic can click that toolbar's voice
+For the exact hold-to-talk preset, Remote Vibe Coding can click that toolbar's voice
 button without moving the cursor or stealing focus.  When the user has hidden
 the toolbar, it is briefly shown off-screen and restored to hidden afterward.
 

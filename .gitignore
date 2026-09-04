@@ -5,9 +5,8 @@ __pycache__/
 *.pyc
 .pytest_cache/
 
-# Local project-control records are not part of the public source release.
+# Generated documentation is not part of the public source release.
 docs/*
 !docs/screenshots/
 !docs/screenshots/settings-connection.png
 !docs/screenshots/settings-buttons.png
-AGENTS.md

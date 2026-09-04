@@ -21,7 +21,7 @@ import OvbRc003Settings 1.0
 
 ApplicationWindow {
     id: window
-    title: qsTr("Remote Mic 设置")
+    title: qsTr("Remote Vibe Coding 设置")
     width: 900
     height: 680
     minimumWidth: 780

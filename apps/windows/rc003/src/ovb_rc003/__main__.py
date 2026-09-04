@@ -64,7 +64,7 @@ from . import __version__
 
 
 def _print_help() -> None:
-    print(f"Remote Mic - RC003 Windows client (source/build candidate) {__version__}")
+    print(f"Remote Vibe Coding - RC001/RC003 Windows client {__version__}")
     print("Not yet real-device verified - see this package's README.md 'Known gaps' section.")
     print()
     print("Usage:")
@@ -145,8 +145,8 @@ def _run_bridge() -> None:
     if selected_device_id == device_catalog.DJI_MIC_2_ID:
         single_instance.show_bridge_startup_blocked_notice(
             "当前设备是 DJI Mic 2。它由 Windows 作为系统录音输入使用，不需要也不会启动 "
-            "RC003 BLE/HID/ATVV 桥。请在 Remote Mic 设置中检查录音端点。",
-            title="Remote Mic",
+            "RC003 BLE/HID/ATVV 桥。请在 Remote Vibe Coding 设置中检查录音端点。",
+            title="Remote Vibe Coding",
         )
         return
 
@@ -158,7 +158,7 @@ def _run_bridge() -> None:
         raise SystemExit(single_instance.DUPLICATE_INSTANCE_EXIT_CODE)
     except single_instance.SingleInstanceUnavailableError as exc:
         single_instance.show_bridge_startup_blocked_notice(
-            "Remote Mic · RC003 could not verify no other instance "
+            "Remote Vibe Coding could not verify no other instance "
             f"is already running, so it will not start. ({exc})"
         )
         raise SystemExit(single_instance.GUARD_UNAVAILABLE_EXIT_CODE)
@@ -170,7 +170,7 @@ def _run_bridge() -> None:
         # sentence regardless of the exact underlying failure.
         print(f"single-instance mutex cleanup failed: {exc}", file=sys.stderr)
         single_instance.show_bridge_startup_blocked_notice(
-            "Remote Mic · RC003 closed, but could not fully release "
+            "Remote Vibe Coding closed, but could not fully release "
             "its single-instance lock. If it will not start again, check "
             "Task Manager for a lingering process before retrying."
         )

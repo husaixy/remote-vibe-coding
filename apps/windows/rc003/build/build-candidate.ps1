@@ -1,7 +1,7 @@
 #requires -Version 5.1
 <#
 .SYNOPSIS
-    Builds an unsigned Remote Mic · RC003 candidate on Windows.
+    Builds an unsigned Remote Vibe Coding candidate on Windows.
 
     Steps: create/activate a virtual environment, install
     requirements-dev.txt, run the public-boundary scan, run the test suite
@@ -42,7 +42,7 @@ function Assert-LastExitCode {
     }
 }
 
-Write-Host "== Remote Mic · RC003 candidate build =="
+Write-Host "== Remote Vibe Coding candidate build =="
 
 Push-Location $RC003Root
 try {

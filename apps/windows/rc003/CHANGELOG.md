@@ -1,4 +1,4 @@
-# Changelog — Remote Mic RC003 (Windows)
+# Changelog — Remote Vibe Coding (Windows)
 
 内部构建版本号固定在 `installer/RemoteMicRC003Setup.iss` 的 `AppVersion`
 （当前 `0.1.0-candidate`），仓库级 tag 只作为发布编号，两者对应关系以每条
