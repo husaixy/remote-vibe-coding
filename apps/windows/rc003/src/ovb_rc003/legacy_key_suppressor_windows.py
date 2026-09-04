@@ -311,6 +311,13 @@ class LegacyKeySuppressor:
         through with no latency.
         """
 
+        if int(vk_code) in self._suppress_vk_codes:
+            # Dedicated keys such as the RC003 voice/F5 edge are owned by
+            # handle_key_event() and are deliberately never armed by Raw
+            # Input. Waiting here once per auto-repeat record can build a
+            # minute-long hook backlog; the delayed records then look like a
+            # fresh voice press after the real release has already arrived.
+            return False
         if self._rc003_vk_codes is not None and int(vk_code) not in self._rc003_vk_codes:
             return False
         effective_wait = (
