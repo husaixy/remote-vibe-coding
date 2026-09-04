@@ -10,7 +10,7 @@
 
 - 本仓库是独立 Git 工作库。保留 `origin` 指向 `miaomiaozii/windows-remote-mic-app` 作为直接上游；个人仓库使用单独 remote。
 - 不改写上游历史。开始修改前检查 `git status`，按可独立审查的目的提交。
-- 提交前运行 `git diff --check` 和相关测试；涉及桌面打包时运行 Windows 候选构建。
+- 提交前检查差异并按当前阶段执行最小必要验证；快速开发阶段不因代码改动默认触发全量测试或 Windows 候选构建。
 - 不提交 `.venv/`、`dist/`、`target/`、`node_modules/`、日志、诊断原始记录、真实设备标识、语音数据或第三方驱动安装包。
 
 ## 版本与提交管理
@@ -18,7 +18,7 @@
 - 版本号遵循 SemVer。日常功能与修复先记录在 `apps/windows/rc003/CHANGELOG.md` 的 `Unreleased`；只有准备候选版或正式发布时才提升版本号并创建 tag。
 - 发布改版时同步检查 `apps/windows/rc003/src/ovb_rc003/__init__.py`、`apps/windows/rc003/pyproject.toml` 和 `apps/windows/rc003/installer/RemoteMicRC003Setup.iss`，不得让包版本、应用版本和安装器版本无说明地漂移。
 - 每个新增功能、修复或文档规则形成目的明确、可独立审查的提交；不要把无关改动混入同一提交。提交说明使用 `feat:`、`fix:`、`docs:`、`test:`、`chore:` 等前缀说明性质。
-- 新功能完成后必须先更新测试与 `CHANGELOG.md`，执行相关验证和 `git diff --check`，再提交到当前功能分支；未经用户明确要求不推送、不发布、不改写历史。
+- 新功能完成后更新 `CHANGELOG.md`，按风险选择最小验证并提交到当前功能分支；只有确实需要防止行为回归时才新增测试，不为文件内容、文档措辞或代码结构编写审核型契约测试。未经用户明确要求不推送、不发布、不改写历史。
 - 候选版 tag 使用 `v<内部版本>-windows-rc003-candidate.<序号>`，正式版 tag 使用 `v<内部版本>-windows`；tag 必须指向已完成构建与验证的干净提交。
 
 ## 许可证与归属
@@ -35,9 +35,12 @@
 - 快速按下/释放、连续会话、断连和异常退出必须成对释放按键与音频状态。
 - 原始语音键可能同时表现为 F5。任何拦截都必须限定到目标遥控器，不能全局屏蔽普通键盘 F5。
 
-## 验证
+## 快速开发阶段的验证
 
 - 安装依赖：`python -m pip install -r apps/windows/rc003/requirements-dev.txt`。
-- 测试：在 `apps/windows/rc003` 下执行 `python -m unittest discover -s tests -t . -p 'test_*.py' -v`。
-- 构建：执行 `apps/windows/rc003/build/build-candidate.ps1`。
+- 默认只运行与本次行为直接相关的最小测试、语法检查或一次人工冒烟；纯文档、提示词和版本规则修改无需运行代码测试。
+- 不默认运行全量测试、构建契约测试、公共边界扫描、完整 PyInstaller/Inno Setup 打包，也不为了提高测试数量新增代码审核性质的测试。
+- 仅在准备发布、修改安装器或打包链路、变更跨模块公共接口、处理安全/资源清理高风险逻辑，或用户明确要求时，才扩大到全量测试或执行 `apps/windows/rc003/build/build-candidate.ps1`。
+- 验证失败时先判断是否由本次改动引起；与改动无关的环境或历史失败只需简要记录，不继续投入大量时间排查，除非它阻塞当前功能。
+- 如需全量测试，在 `apps/windows/rc003` 下执行 `python -m unittest discover -s tests -t . -p 'test_*.py' -v`；如需候选构建，执行 `apps/windows/rc003/build/build-candidate.ps1`。
 - `passed` 只表示实际执行并观察通过；真实 RC001、RC003、Codex 和输入法联动必须分别真机验证，自动测试不能替代。
