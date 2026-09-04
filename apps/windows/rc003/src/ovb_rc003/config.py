@@ -80,7 +80,11 @@ def default_config() -> Dict[str, Any]:
         # 16 kHz PCM is sent to the virtual microphone.
         "gain_db": 10.0,
         "retry_delay": 5.0,
-        "max_retry_delay": 60.0,
+        # A remote-button wake window is short. A 60-second backoff can miss
+        # the entire window after the sleeping RC001/RC003 emits its first
+        # keyboard edge, leaving that F5-shaped mic edge unowned. Keep BLE
+        # retries close enough to the physical wake-up to re-subscribe.
+        "max_retry_delay": 5.0,
         "voice_shortcut_enabled": True,
         "voice_hotkey": key_mapping.voice_hotkey_for_trigger_mode(
             key_mapping.VoiceTriggerMode.TOGGLE
