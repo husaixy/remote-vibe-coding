@@ -408,7 +408,7 @@ def _load_qt_classes() -> dict:
             "PySide6-Essentials 未安装，无法打开 Qt 设置界面。源码运行请先在本项目"
             "的虚拟环境中执行 `pip install -r requirements.txt`（已包含 "
             "PySide6-Essentials）；打包后的 RemoteMicRC003.exe 自带 Qt 运行"
-            "时，不需要终端用户单独安装 Python 或 Qt。"
+            f"时，不需要终端用户单独安装 Python 或 Qt。底层加载错误：{exc}"
         ) from exc
 
     _DisplayRole = Qt.ItemDataRole.DisplayRole

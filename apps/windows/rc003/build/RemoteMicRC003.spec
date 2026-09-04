@@ -36,6 +36,23 @@ VB_CABLE_BUNDLE_ZIP = RC003_ROOT / "build" / "third_party" / "VBCABLE_Driver_Pac
 FRIDA_ASSET_DIR = SRC_ROOT / "ovb_rc003" / "frida_assets"
 
 datas = []
+binaries = []
+# A venv created from Conda's CPython keeps ``_ctypes.pyd`` linked against
+# ``Library/bin/ffi.dll`` in the base interpreter. PyInstaller does not search
+# that directory automatically, so an otherwise successful build crashes at
+# startup when ``ctypes`` is first imported. Official python.org builds do not
+# have this file and continue through the empty-list path.
+conda_ffi = Path(sys.base_prefix) / "Library" / "bin" / "ffi.dll"
+if conda_ffi.is_file():
+    binaries.append((str(conda_ffi), "."))
+# Prefer the redistributable DLLs shipped with the installed PySide6 wheel.
+# Conda also exposes older files with the same names at its prefix root;
+# PyInstaller can otherwise select those and produce a build where QtCore
+# fails to load with ERROR_PROC_NOT_FOUND.
+pyside_root = Path(sys.prefix) / "Lib" / "site-packages" / "PySide6"
+for runtime_pattern in ("msvcp140*.dll", "vcruntime140*.dll"):
+    for runtime_dll in pyside_root.glob(runtime_pattern):
+        binaries.append((str(runtime_dll), "."))
 if REMOTE_PHOTO.is_file():
     # Re-verified correct for this one-dir COLLECT build (XRBM-018 RETRY 1
     # P2 #4): this places the photo under Resources/ inside the COLLECT
@@ -143,7 +160,7 @@ a = Analysis(
     # main`), which needs no parent package.
     [str(SRC_ROOT / "launcher.py")],
     pathex=[str(SRC_ROOT)],
-    binaries=[],
+    binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,
     hookspath=[],
@@ -161,6 +178,15 @@ a = Analysis(
     win_private_assemblies=False,
     cipher=block_cipher,
     noarchive=False,
+)
+
+# Qt 6 on Windows links against the OS-provided ``icuuc.dll``. A build shell
+# can have an unrelated Conda/Poppler ICU directory on PATH; PyInstaller then
+# follows that DLL and bundles both it and its versioned data DLL, causing
+# QtCore to fail at startup. Keep those ambient binaries out of the artifact.
+_ambient_icu_names = {"icuuc.dll", "icudt78.dll"}
+a.binaries = type(a.binaries)(
+    entry for entry in a.binaries if Path(entry[0]).name.lower() not in _ambient_icu_names
 )
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
