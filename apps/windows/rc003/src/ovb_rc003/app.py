@@ -119,6 +119,7 @@ class RC003App:
         self._voice_hotkey = hotkey.HotkeySpec.parse(self._config["voice_hotkey"])
         self._voice_audio_start_fallback_pending = False
         self._voice_audio_started_waiting_for_legacy_f5 = False
+        self._voice_activation_backend: Optional[str] = None
         # Raw Input and the ATVV control channel arrive on different worker
         # threads. Serialize the voice state machine so one physical press
         # cannot race into two host shortcut deliveries.
@@ -843,6 +844,69 @@ class RC003App:
 
     def _apply_voice_action(self, action: voice_controller.VoiceHostAction) -> bool:
         tokens = tuple(self._voice_hotkey.modifiers) + (self._voice_hotkey.key,)
+        if (
+            self._voice.trigger_mode == key_mapping.VoiceTriggerMode.HOLD
+            and tokens == ("ralt",)
+            and action in {
+                voice_controller.VoiceHostAction.KEY_DOWN,
+                voice_controller.VoiceHostAction.KEY_UP,
+            }
+        ):
+            if action == voice_controller.VoiceHostAction.KEY_DOWN:
+                try:
+                    win32_input.send_voice_key_combo_down(tokens)
+                except (win32_input.Win32InputUnavailableError, OSError):
+                    self._logger.exception("voice programmatic right Alt delivery failed")
+                    return False
+                if wechat_input_method.wait_voice_panel_active(True):
+                    self._voice_activation_backend = "right_alt"
+                    self._logger.info(
+                        "voice WeChat panel observed after programmatic right Alt"
+                    )
+                    return True
+                try:
+                    win32_input.send_voice_key_combo_up(tokens)
+                except (win32_input.Win32InputUnavailableError, OSError):
+                    self._logger.exception(
+                        "voice programmatic right Alt was not accepted and could not be released"
+                    )
+                    return False
+                self._logger.info(
+                    "voice WeChat panel not observed after programmatic right Alt; "
+                    "trying toolbar fallback"
+                )
+                if wechat_input_method.set_voice_panel_active(True):
+                    self._voice_activation_backend = "toolbar"
+                    self._logger.info(
+                        "voice WeChat panel observed after toolbar fallback"
+                    )
+                    return True
+                self._voice_activation_backend = None
+                self._logger.info(
+                    "voice WeChat panel was not observed after either activation path"
+                )
+                return False
+
+            backend = self._voice_activation_backend
+            self._voice_activation_backend = None
+            if backend == "toolbar":
+                if wechat_input_method.set_voice_panel_active(False):
+                    self._logger.info(
+                        "voice WeChat panel closed through toolbar fallback"
+                    )
+                    return True
+                self._logger.info(
+                    "voice WeChat panel close was not observed through toolbar fallback"
+                )
+                return False
+            try:
+                win32_input.send_voice_key_combo_up(tokens)
+                self._logger.info("voice programmatic right Alt released")
+                return True
+            except (win32_input.Win32InputUnavailableError, OSError):
+                self._logger.exception("voice programmatic right Alt release failed")
+                return False
+
         if (
             self._voice.trigger_mode == key_mapping.VoiceTriggerMode.HOLD
             and set(tokens) == {"lctrl", "lwin"}

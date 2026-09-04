@@ -4,7 +4,8 @@ WeChat Input Method intentionally ignores synthetic ``Ctrl+Win`` events in
 some foreground applications, even though its own toolbar remains available.
 For the exact hold-to-talk preset, Remote Vibe Coding can click that toolbar's voice
 button without moving the cursor or stealing focus.  When the user has hidden
-the toolbar, it is briefly shown off-screen and restored to hidden afterward.
+the toolbar, it is briefly shown without activation at WeChat's saved monitor
+position and restored to hidden afterward.
 
 The window class/title and owning executable are all verified before a click.
 If any check fails, callers fall back to the configured keyboard shortcut.
@@ -32,10 +33,6 @@ MK_LBUTTON = 0x0001
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 SW_HIDE = 0
 SW_SHOWNOACTIVATE = 4
-SWP_NOZORDER = 0x0004
-SWP_NOACTIVATE = 0x0010
-SWP_NOOWNERZORDER = 0x0200
-OFFSCREEN_COORDINATE = -32000
 
 
 class _NativeWindows:
@@ -51,21 +48,6 @@ class _NativeWindows:
             ctypes.POINTER(wintypes.RECT),
         )
         self.user32.GetClientRect.restype = wintypes.BOOL
-        self.user32.GetWindowRect.argtypes = (
-            wintypes.HWND,
-            ctypes.POINTER(wintypes.RECT),
-        )
-        self.user32.GetWindowRect.restype = wintypes.BOOL
-        self.user32.SetWindowPos.argtypes = (
-            wintypes.HWND,
-            wintypes.HWND,
-            ctypes.c_int,
-            ctypes.c_int,
-            ctypes.c_int,
-            ctypes.c_int,
-            wintypes.UINT,
-        )
-        self.user32.SetWindowPos.restype = wintypes.BOOL
         self.user32.ShowWindow.argtypes = (wintypes.HWND, ctypes.c_int)
         self.user32.ShowWindow.restype = wintypes.BOOL
         self.user32.GetWindowThreadProcessId.argtypes = (
@@ -101,56 +83,16 @@ class _NativeWindows:
             return (0, 0)
         return (max(0, rect.right - rect.left), max(0, rect.bottom - rect.top))
 
-    def reveal_toolbar_offscreen(self, hwnd: int) -> Optional[Tuple[int, int, int, int]]:
-        """Make a hidden toolbar dispatchable without putting it on-screen."""
+    def show_hidden_toolbar(self, hwnd: int) -> bool:
+        """Show the toolbar without focus at its saved monitor position."""
 
-        rect = wintypes.RECT()
-        if not self.user32.GetWindowRect(hwnd, ctypes.byref(rect)):
-            return None
-        original = (rect.left, rect.top, rect.right, rect.bottom)
-        width = max(1, rect.right - rect.left)
-        height = max(1, rect.bottom - rect.top)
-        flags = SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER
-        if not self.user32.SetWindowPos(
-            hwnd,
-            None,
-            OFFSCREEN_COORDINATE,
-            OFFSCREEN_COORDINATE,
-            width,
-            height,
-            flags,
-        ):
-            return None
         self.user32.ShowWindow(hwnd, SW_SHOWNOACTIVATE)
-        if not self.is_visible(hwnd):
-            self.user32.SetWindowPos(
-                hwnd,
-                None,
-                original[0],
-                original[1],
-                max(1, original[2] - original[0]),
-                max(1, original[3] - original[1]),
-                flags,
-            )
-            return None
-        return original
+        return self.is_visible(hwnd)
 
-    def restore_hidden_toolbar(
-        self, hwnd: int, original: Tuple[int, int, int, int]
-    ) -> None:
-        """Hide the toolbar before restoring its original screen position."""
+    def hide_toolbar(self, hwnd: int) -> None:
+        """Restore a toolbar that was hidden before this operation."""
 
         self.user32.ShowWindow(hwnd, SW_HIDE)
-        flags = SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER
-        self.user32.SetWindowPos(
-            hwnd,
-            None,
-            original[0],
-            original[1],
-            max(1, original[2] - original[0]),
-            max(1, original[3] - original[1]),
-            flags,
-        )
 
     def process_name(self, hwnd: int) -> str:
         pid = wintypes.DWORD(0)
@@ -199,6 +141,32 @@ def voice_button_point(width: int, height: int) -> Tuple[int, int]:
     return (max(1, int(width) * 3 // 10), max(1, int(height) // 2))
 
 
+def wait_voice_panel_active(
+    active: bool,
+    *,
+    _native: Optional[object] = None,
+    timeout_seconds: float = 0.25,
+) -> bool:
+    """Observe whether WeChat actually changed its voice-panel state."""
+
+    if _native is None:
+        if sys.platform != "win32":
+            return False
+        native = _NativeWindows()
+    else:
+        native = _native
+
+    desired = bool(active)
+    deadline = time.monotonic() + max(0.0, float(timeout_seconds))
+    while True:
+        voice_window = native.find_window(VOICE_WINDOW_CLASS, VOICE_WINDOW_TITLE)
+        if voice_window and native.is_visible(voice_window) == desired:
+            return True
+        if time.monotonic() >= deadline:
+            return False
+        native.sleep(0.01)
+
+
 def set_voice_panel_active(
     active: bool,
     *,
@@ -225,10 +193,9 @@ def set_voice_panel_active(
     if native.is_visible(voice_window) == desired:
         return True
 
-    toolbar_state = None
-    if not native.is_visible(toolbar):
-        toolbar_state = native.reveal_toolbar_offscreen(toolbar)
-        if toolbar_state is None:
+    toolbar_was_hidden = not native.is_visible(toolbar)
+    if toolbar_was_hidden:
+        if not native.show_hidden_toolbar(toolbar):
             return False
 
     try:
@@ -239,12 +206,11 @@ def set_voice_panel_active(
         if not native.post_left_click(toolbar, x, y):
             return False
 
-        deadline = time.monotonic() + max(0.0, float(timeout_seconds))
-        while time.monotonic() <= deadline:
-            if native.is_visible(voice_window) == desired:
-                return True
-            native.sleep(0.01)
-        return False
+        return wait_voice_panel_active(
+            desired,
+            _native=native,
+            timeout_seconds=timeout_seconds,
+        )
     finally:
-        if toolbar_state is not None:
-            native.restore_hidden_toolbar(toolbar, toolbar_state)
+        if toolbar_was_hidden:
+            native.hide_toolbar(toolbar)
