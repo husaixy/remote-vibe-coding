@@ -280,31 +280,25 @@ class HostHotkeyFailureSuppressesMicOpenTests(_AppWiringTestCase):
         self.assertEqual(hotkey_calls, [("ralt", "space")])
         self.assertTrue(self.app._voice.active)
 
-    def test_right_alt_hold_audio_start_uses_keyboard_without_waiting_for_f5(self):
+    def test_right_alt_hold_audio_start_uses_hidden_toolbar(self):
         self.app._voice.trigger_mode = key_mapping.VoiceTriggerMode.HOLD
         self.app._voice_hotkey = app_module.hotkey.HotkeySpec.parse("ralt")
         panel_calls = []
         keyboard_calls = []
         original_panel = app_module.wechat_input_method.set_voice_panel_active
-        original_wait = app_module.wechat_input_method.wait_voice_panel_active
         original_down = win32_input.send_voice_key_combo_down
-        original_up = win32_input.send_voice_key_combo_up
         app_module.wechat_input_method.set_voice_panel_active = (
             lambda active: panel_calls.append(active) or True
         )
-        app_module.wechat_input_method.wait_voice_panel_active = lambda active: True
         win32_input.send_voice_key_combo_down = lambda tokens: keyboard_calls.append(tokens)
-        win32_input.send_voice_key_combo_up = lambda tokens: None
         try:
             self.app._on_control_event(AudioStarted(session_id=1))
         finally:
             app_module.wechat_input_method.set_voice_panel_active = original_panel
-            app_module.wechat_input_method.wait_voice_panel_active = original_wait
             win32_input.send_voice_key_combo_down = original_down
-            win32_input.send_voice_key_combo_up = original_up
 
-        self.assertEqual(panel_calls, [])
-        self.assertEqual(keyboard_calls, [("ralt",)])
+        self.assertEqual(panel_calls, [True])
+        self.assertEqual(keyboard_calls, [])
         self.assertTrue(self.app._voice.active)
         self.assertFalse(self.app._voice_audio_started_waiting_for_legacy_f5)
 
@@ -350,18 +344,16 @@ class HostHotkeyFailureSuppressesMicOpenTests(_AppWiringTestCase):
         self.assertEqual(panel_calls, [True])
         self.assertEqual(keyboard_calls, [])
 
-    def test_wechat_input_method_right_alt_hold_uses_observed_keyboard_result(self):
+    def test_wechat_input_method_right_alt_hold_uses_hidden_toolbar(self):
         self.app._voice.trigger_mode = key_mapping.VoiceTriggerMode.HOLD
         self.app._voice_hotkey = app_module.hotkey.HotkeySpec.parse("ralt")
         panel_calls = []
         keyboard_calls = []
         original_panel = app_module.wechat_input_method.set_voice_panel_active
-        original_wait = app_module.wechat_input_method.wait_voice_panel_active
         original_keyboard = win32_input.send_voice_key_combo_down
         app_module.wechat_input_method.set_voice_panel_active = (
             lambda active: panel_calls.append(active) or True
         )
-        app_module.wechat_input_method.wait_voice_panel_active = lambda active: True
         win32_input.send_voice_key_combo_down = lambda tokens: keyboard_calls.append(tokens)
         try:
             self.assertTrue(
@@ -371,26 +363,23 @@ class HostHotkeyFailureSuppressesMicOpenTests(_AppWiringTestCase):
             )
         finally:
             app_module.wechat_input_method.set_voice_panel_active = original_panel
-            app_module.wechat_input_method.wait_voice_panel_active = original_wait
             win32_input.send_voice_key_combo_down = original_keyboard
 
-        self.assertEqual(panel_calls, [])
-        self.assertEqual(keyboard_calls, [("ralt",)])
-        self.assertEqual(self.app._voice_activation_backend, "right_alt")
+        self.assertEqual(panel_calls, [True])
+        self.assertEqual(keyboard_calls, [])
+        self.assertEqual(self.app._voice_activation_backend, "toolbar")
 
-    def test_wechat_input_method_right_alt_falls_back_to_toolbar(self):
+    def test_wechat_input_method_right_alt_closes_through_same_toolbar(self):
         self.app._voice.trigger_mode = key_mapping.VoiceTriggerMode.HOLD
         self.app._voice_hotkey = app_module.hotkey.HotkeySpec.parse("ralt")
         panel_calls = []
         keyboard_calls = []
         original_panel = app_module.wechat_input_method.set_voice_panel_active
-        original_wait = app_module.wechat_input_method.wait_voice_panel_active
         original_down = win32_input.send_voice_key_combo_down
         original_up = win32_input.send_voice_key_combo_up
         app_module.wechat_input_method.set_voice_panel_active = (
             lambda active: panel_calls.append(active) or True
         )
-        app_module.wechat_input_method.wait_voice_panel_active = lambda active: False
         win32_input.send_voice_key_combo_down = (
             lambda tokens: keyboard_calls.append(("down", tokens))
         )
@@ -411,16 +400,29 @@ class HostHotkeyFailureSuppressesMicOpenTests(_AppWiringTestCase):
             )
         finally:
             app_module.wechat_input_method.set_voice_panel_active = original_panel
-            app_module.wechat_input_method.wait_voice_panel_active = original_wait
             win32_input.send_voice_key_combo_down = original_down
             win32_input.send_voice_key_combo_up = original_up
 
-        self.assertEqual(
-            keyboard_calls,
-            [("down", ("ralt",)), ("up", ("ralt",))],
-        )
+        self.assertEqual(keyboard_calls, [])
         self.assertEqual(panel_calls, [True, False])
         self.assertIsNone(self.app._voice_activation_backend)
+
+    def test_failed_hold_activation_is_not_retried_by_duplicate_channels(self):
+        self.app._voice.trigger_mode = key_mapping.VoiceTriggerMode.HOLD
+        self.app._voice_hotkey = app_module.hotkey.HotkeySpec.parse("ralt")
+        panel_calls = []
+        original_panel = app_module.wechat_input_method.set_voice_panel_active
+        app_module.wechat_input_method.set_voice_panel_active = (
+            lambda active: panel_calls.append(active) or False
+        )
+        try:
+            self.app._on_control_event(AudioStarted(session_id=1))
+            self.app._on_legacy_key_event(0x74, True)
+            self.app._on_control_event(MicButtonPressed())
+        finally:
+            app_module.wechat_input_method.set_voice_panel_active = original_panel
+
+        self.assertEqual(panel_calls, [True])
 
     def test_wechat_input_method_status_bar_failure_keeps_hotkey_fallback(self):
         self.app._voice.trigger_mode = key_mapping.VoiceTriggerMode.HOLD

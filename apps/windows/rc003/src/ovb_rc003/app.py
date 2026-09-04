@@ -120,6 +120,7 @@ class RC003App:
         self._voice_audio_start_fallback_pending = False
         self._voice_audio_started_waiting_for_legacy_f5 = False
         self._voice_activation_backend: Optional[str] = None
+        self._voice_hold_trigger_claimed = False
         # Raw Input and the ATVV control channel arrive on different worker
         # threads. Serialize the voice state machine so one physical press
         # cannot race into two host shortcut deliveries.
@@ -390,6 +391,7 @@ class RC003App:
                 self._voice_audio_start_fallback_pending = False
                 self._voice_audio_started_waiting_for_legacy_f5 = False
                 self._voice_raw_input_trigger_pending = False
+                self._voice_hold_trigger_claimed = False
                 reset_action = self._voice.reset()
                 if reset_action is not None and not self._apply_voice_action(reset_action):
                     # _apply_voice_action() already logged the specific failure.
@@ -593,8 +595,12 @@ class RC003App:
         self._reload_bindings_if_changed()
         if button_id == "mic":
             if not is_pressed:
+                if not self._voice.active:
+                    self._voice_hold_trigger_claimed = False
                 return
             with self._voice_trigger_lock:
+                if not self._claim_hold_voice_trigger():
+                    return
                 if self._voice.active:
                     self._logger.info(
                         "voice physical trigger ignored: voice session already active"
@@ -741,6 +747,8 @@ class RC003App:
             )
         elif isinstance(event, MicButtonPressed):
             with self._voice_trigger_lock:
+                if not self._claim_hold_voice_trigger():
+                    return
                 if self._voice_raw_input_trigger_pending:
                     self._voice_raw_input_trigger_pending = False
                     self._logger.info(
@@ -765,7 +773,7 @@ class RC003App:
                 self._logger.info("voice audio started")
                 self._voice_pcm_stats.reset()
                 self._voice_audio_start_fallback_pending = False
-                if not self._voice.active:
+                if not self._voice.active and self._claim_hold_voice_trigger():
                     self._logger.info("voice audio start used as microphone trigger")
                     self._handle_mic_button_pressed(send_device_open=False)
                     self._voice_audio_start_fallback_pending = self._voice.active
@@ -792,6 +800,7 @@ class RC003App:
                 self._voice_audio_start_fallback_pending = False
                 self._voice_audio_started_waiting_for_legacy_f5 = False
                 self._voice_raw_input_trigger_pending = False
+                self._voice_hold_trigger_claimed = False
                 action = self._voice.on_audio_stopped()
                 action_applied = (
                     True
@@ -858,6 +867,17 @@ class RC003App:
         if send_device_open and self._ble_session is not None:
             self._ble_session.send_mic_open_threadsafe()
 
+    def _claim_hold_voice_trigger(self) -> bool:
+        if self._voice.trigger_mode != key_mapping.VoiceTriggerMode.HOLD:
+            return True
+        if self._voice_hold_trigger_claimed:
+            self._logger.info(
+                "voice physical trigger ignored: hold session already claimed"
+            )
+            return False
+        self._voice_hold_trigger_claimed = True
+        return True
+
     def _apply_voice_action(self, action: voice_controller.VoiceHostAction) -> bool:
         tokens = tuple(self._voice_hotkey.modifiers) + (self._voice_hotkey.key,)
         if (
@@ -869,37 +889,15 @@ class RC003App:
             }
         ):
             if action == voice_controller.VoiceHostAction.KEY_DOWN:
-                try:
-                    win32_input.send_voice_key_combo_down(tokens)
-                except (win32_input.Win32InputUnavailableError, OSError):
-                    self._logger.exception("voice programmatic right Alt delivery failed")
-                    return False
-                if wechat_input_method.wait_voice_panel_active(True):
-                    self._voice_activation_backend = "right_alt"
-                    self._logger.info(
-                        "voice WeChat panel observed after programmatic right Alt"
-                    )
-                    return True
-                try:
-                    win32_input.send_voice_key_combo_up(tokens)
-                except (win32_input.Win32InputUnavailableError, OSError):
-                    self._logger.exception(
-                        "voice programmatic right Alt was not accepted and could not be released"
-                    )
-                    return False
-                self._logger.info(
-                    "voice WeChat panel not observed after programmatic right Alt; "
-                    "trying toolbar fallback"
-                )
                 if wechat_input_method.set_voice_panel_active(True):
                     self._voice_activation_backend = "toolbar"
                     self._logger.info(
-                        "voice WeChat panel observed after toolbar fallback"
+                        "voice WeChat panel observed through hidden toolbar"
                     )
                     return True
                 self._voice_activation_backend = None
                 self._logger.info(
-                    "voice WeChat panel was not observed after either activation path"
+                    "voice WeChat panel was not observed through hidden toolbar"
                 )
                 return False
 
@@ -915,13 +913,8 @@ class RC003App:
                     "voice WeChat panel close was not observed through toolbar fallback"
                 )
                 return False
-            try:
-                win32_input.send_voice_key_combo_up(tokens)
-                self._logger.info("voice programmatic right Alt released")
-                return True
-            except (win32_input.Win32InputUnavailableError, OSError):
-                self._logger.exception("voice programmatic right Alt release failed")
-                return False
+            self._logger.info("voice right Alt hold ended without an active backend")
+            return True
 
         if (
             self._voice.trigger_mode == key_mapping.VoiceTriggerMode.HOLD
