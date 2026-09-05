@@ -133,15 +133,15 @@ def _start_menu_shortcuts(
 
 
 def _packaged_codex_paths() -> Iterable[Path]:
-    # Codex is commonly delivered as a Windows Store package.  It may not be
-    # on PATH or in Start Menu as a normal exe, but the running package exposes
-    # this stable relative resource path.  The glob handles version updates.
+    # Codex is delivered as a Windows Store package whose GUI is ChatGPT.exe.
+    # app/resources/codex.exe is the CLI backend and must never be launched for
+    # an "Open Codex" mapping. The glob handles package version updates.
     for root in _windows_roots():
         windows_apps = root / "WindowsApps"
         if not windows_apps.is_dir():
             continue
         try:
-            yield from windows_apps.glob("OpenAI.Codex_*/app/resources/codex.exe")
+            yield from windows_apps.glob("OpenAI.Codex_*/app/ChatGPT.exe")
         except OSError:
             continue
 
@@ -164,16 +164,17 @@ def resolve_application_command(
             return (str(executable), "--settings")
         return None
 
+    if action.kind == key_mapping.ActionKind.OPEN_CODEX:
+        for candidate in _packaged_codex_paths():
+            if executable_exists(candidate):
+                return (str(candidate),)
+
     names = _APPLICATION_EXECUTABLES.get(action.kind)
     if not names:
         return None
     for candidate in _candidate_paths(names):
         if executable_exists(candidate):
             return (str(candidate),)
-    if action.kind == key_mapping.ActionKind.OPEN_CODEX:
-        for candidate in _packaged_codex_paths():
-            if executable_exists(candidate):
-                return (str(candidate),)
     exact_shortcut_action = action.kind in {
         key_mapping.ActionKind.OPEN_WECHAT,
         key_mapping.ActionKind.OPEN_WECOM,

@@ -65,6 +65,8 @@ _REFERENCE_ACTION_LABELS: Dict[key_mapping.ActionKind, str] = {
     key_mapping.ActionKind.PLAY_PAUSE: "播放 / 暂停",
     key_mapping.ActionKind.OPEN_REMOTE_MIC: "打开 Remote Vibe Coding",
     key_mapping.ActionKind.OPEN_CODEX: "打开 Codex",
+    key_mapping.ActionKind.MINIMIZE_CODEX: "收起 Codex",
+    key_mapping.ActionKind.FOCUS_CODEX_MAIN_CHAT: "唤醒 Codex 并聚焦输入框",
     key_mapping.ActionKind.OPEN_CLAUDE: "打开 Claude",
     key_mapping.ActionKind.OPEN_CMUX: "打开 cmux",
     key_mapping.ActionKind.OPEN_WECHAT: "打开微信",
@@ -87,7 +89,8 @@ _PRESET_KEY_COMBOS = (
     "Escape", "Return", "Delete（退格）", "方向上", "方向下", "方向左", "方向右",
     "显示桌面", "上下文菜单", "应用切换", "系统音量 +", "系统音量 −",
     "系统静音", "播放 / 暂停",
-    "打开 Remote Vibe Coding", "打开 Codex", "打开 Claude", "打开 cmux", "打开微信",
+    "打开 Remote Vibe Coding", "打开 Codex", "收起 Codex", "唤醒 Codex 并聚焦输入框",
+    "打开 Claude", "打开 cmux", "打开微信",
     "打开 Cursor", "打开 Slack", "打开企业微信", "打开网易云音乐",
     "打开 Chrome", "打开 Edge", "打开 Zed",
     "lctrl+win", "ralt", "ralt+space", "tab", "space", "f5", "禁用",
@@ -315,6 +318,7 @@ class DefaultDisplayState:
 
 def default_display_state() -> DefaultDisplayState:
     defaults = key_mapping.default_button_actions()
+    secondary_defaults = key_mapping.default_secondary_actions()
     button_display_map = {
         button_id: _action_to_display(action) for button_id, action in defaults.items()
     }
@@ -322,8 +326,18 @@ def default_display_state() -> DefaultDisplayState:
         button_display_map.setdefault(button_id, "")
     secondary_display_map = {
         button_id: {
-            key_mapping.ButtonTrigger.DOUBLE_CLICK.value: "",
-            key_mapping.ButtonTrigger.LONG_PRESS.value: "",
+            trigger.value: _action_to_display(
+                secondary_defaults.get(button_id, {}).get(
+                    trigger.value,
+                    key_mapping.ButtonAction(key_mapping.ActionKind.DISABLED),
+                )
+            )
+            if trigger.value in secondary_defaults.get(button_id, {})
+            else ""
+            for trigger in (
+                key_mapping.ButtonTrigger.DOUBLE_CLICK,
+                key_mapping.ButtonTrigger.LONG_PRESS,
+            )
         }
         for button_id in _USER_FACING_BUTTON_IDS
         if button_id != "mic"

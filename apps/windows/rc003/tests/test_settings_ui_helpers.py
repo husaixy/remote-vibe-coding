@@ -70,6 +70,8 @@ class DisplayRoundTripTests(unittest.TestCase):
         expected = {
             "打开 Remote Vibe Coding": key_mapping.ActionKind.OPEN_REMOTE_MIC,
             "打开 Codex": key_mapping.ActionKind.OPEN_CODEX,
+            "收起 Codex": key_mapping.ActionKind.MINIMIZE_CODEX,
+            "唤醒 Codex 并聚焦输入框": key_mapping.ActionKind.FOCUS_CODEX_MAIN_CHAT,
             "打开 Claude": key_mapping.ActionKind.OPEN_CLAUDE,
             "打开 cmux": key_mapping.ActionKind.OPEN_CMUX,
             "打开 Chrome": key_mapping.ActionKind.OPEN_CHROME,
@@ -368,6 +370,14 @@ class DefaultDisplayStateTests(unittest.TestCase):
     def test_trigger_mode_defaults_to_toggle_label(self):
         state = default_display_state()
         self.assertIn("免按住", state.trigger_mode_label)
+
+    def test_home_defaults_to_codex_hide_and_long_press_focus(self):
+        state = default_display_state()
+        self.assertEqual(state.button_display_map["home"], "收起 Codex")
+        self.assertEqual(
+            state.secondary_display_map["home"]["long_press"],
+            "唤醒 Codex 并聚焦输入框",
+        )
 
 
 class DescribeLaunchResultTests(unittest.TestCase):

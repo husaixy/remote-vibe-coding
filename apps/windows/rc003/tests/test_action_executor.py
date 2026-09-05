@@ -40,10 +40,29 @@ class SemanticApplicationActionTests(unittest.TestCase):
 
             with mock.patch.object(
                 action_executor, "_candidate_paths", return_value=[executable]
+            ), mock.patch.object(
+                action_executor, "_packaged_codex_paths", return_value=[]
             ):
                 command = action_executor.resolve_application_command(action)
 
         self.assertEqual(command, (str(executable),))
+
+    def test_packaged_codex_gui_wins_over_the_cli_candidate(self):
+        action = key_mapping.ButtonAction(key_mapping.ActionKind.OPEN_CODEX)
+        with mock.patch.object(
+            action_executor,
+            "_packaged_codex_paths",
+            return_value=[Path("C:/WindowsApps/OpenAI.Codex_1/app/ChatGPT.exe")],
+        ), mock.patch.object(
+            action_executor,
+            "_candidate_paths",
+            return_value=[Path("C:/OpenAI/Codex/bin/codex.exe")],
+        ):
+            command = action_executor.resolve_application_command(
+                action, executable_exists=lambda _path: True
+            )
+
+        self.assertEqual(command, ("C:\\WindowsApps\\OpenAI.Codex_1\\app\\ChatGPT.exe",))
 
     def test_open_uses_the_resolved_command_and_does_not_start_a_real_process(self):
         action = key_mapping.ButtonAction(key_mapping.ActionKind.OPEN_CHROME)

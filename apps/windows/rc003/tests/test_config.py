@@ -224,6 +224,30 @@ class RoundTripTests(unittest.TestCase):
             config.save_key_bindings(path, original)
             loaded = config.load_key_bindings(path)
             self.assertEqual(loaded["bindings"], original["bindings"])
+            self.assertEqual(
+                loaded["secondary_bindings"], original["secondary_bindings"]
+            )
+
+    def test_existing_empty_secondary_bindings_do_not_reinherit_new_defaults(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "key_bindings.json"
+            path.write_text(
+                json.dumps({"bindings": {}, "secondary_bindings": {}}),
+                encoding="utf-8",
+            )
+
+            loaded = config.load_key_bindings(path)
+
+        self.assertEqual(loaded["secondary_bindings"], {})
+
+    def test_missing_bindings_file_receives_home_long_press_default(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            loaded = config.load_key_bindings(Path(tmp) / "missing.json")
+
+        self.assertEqual(
+            loaded["secondary_bindings"]["home"]["long_press"]["kind"],
+            key_mapping.ActionKind.FOCUS_CODEX_MAIN_CHAT.value,
+        )
 
     def test_legacy_reference_chords_are_migrated_to_semantic_actions(self):
         with tempfile.TemporaryDirectory() as tmp:

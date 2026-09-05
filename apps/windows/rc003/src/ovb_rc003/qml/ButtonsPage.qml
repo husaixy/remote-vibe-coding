@@ -279,6 +279,14 @@ Item {
                 font.pixelSize: tokens.fontSizeSmall
             }
 
+            Label {
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                text: qsTr("Codex 联动：请在 Codex 的快捷键设置中，将“聚焦主聊天 / Focus main chat”绑定为 Ctrl+Alt+Shift+F12。主页键默认短按收起 Codex，长按约 0.55 秒唤醒并聚焦输入框。")
+                color: tokens.textSecondary
+                font.pixelSize: tokens.fontSizeSmall
+            }
+
             Rectangle {
                 Layout.fillWidth: true
                 implicitHeight: detectionRow.implicitHeight + tokens.spacingMedium * 2

@@ -198,7 +198,15 @@ def default_key_bindings() -> Dict[str, Any]:
         # Secondary gestures follow the reference project's separate map.
         # Keeping the primary action flat preserves compatibility with all
         # existing Windows config files.
-        "secondary_bindings": {},
+        "secondary_bindings": {
+            button_id: {
+                trigger: action.to_dict()
+                for trigger, action in trigger_actions.items()
+            }
+            for button_id, trigger_actions in (
+                key_mapping.default_secondary_actions().items()
+            )
+        },
         # Physical signatures are learned from Raw Input captures. They are
         # deliberately independent of semantic actions and contain no device
         # path or Bluetooth identity.
@@ -212,9 +220,18 @@ def load_key_bindings(path: Path) -> Dict[str, Any]:
         with path.open("r", encoding="utf-8-sig") as handle:
             stored = json.load(handle)
         _assert_no_forbidden_keys(stored)
+        # Secondary gestures used to have no defaults. An existing file that
+        # omits the map, or explicitly stores an empty one, must keep that
+        # choice instead of inheriting a newly introduced gesture. Fresh
+        # installs still receive default_key_bindings() unchanged.
+        if "secondary_bindings" not in stored:
+            bindings["secondary_bindings"] = {}
         for key, value in stored.items():
             if key in {"bindings", "secondary_bindings", "physical_bindings"}:
                 if isinstance(value, dict):
+                    if key == "secondary_bindings":
+                        bindings[key] = value
+                        continue
                     current = bindings.get(key)
                     if not isinstance(current, dict):
                         current = {}

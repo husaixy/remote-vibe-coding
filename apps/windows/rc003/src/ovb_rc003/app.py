@@ -63,6 +63,7 @@ from . import (
     audio_output,
     audio_playback,
     action_executor,
+    codex_window,
     ble_transport_winrt,
     button_gesture,
     config,
@@ -96,6 +97,14 @@ def open_configured_application(action: key_mapping.ButtonAction) -> bool:
     """Application-action seam kept at the app boundary for testability."""
 
     return action_executor.open_configured_application(action)
+
+
+def minimize_codex_if_foreground() -> bool:
+    return codex_window.minimize_if_foreground()
+
+
+def focus_codex_main_chat() -> bool:
+    return codex_window.focus_main_chat()
 
 
 class RC003App:
@@ -723,6 +732,11 @@ class RC003App:
                 win32_input.send_volume_mute()
             elif action.kind == key_mapping.ActionKind.PLAY_PAUSE:
                 win32_input.send_play_pause()
+            elif action.kind == key_mapping.ActionKind.MINIMIZE_CODEX:
+                minimize_codex_if_foreground()
+            elif action.kind == key_mapping.ActionKind.FOCUS_CODEX_MAIN_CHAT:
+                if not focus_codex_main_chat():
+                    self._logger.warning("Codex main-chat focus action was not delivered")
             elif action_executor.is_application_action(action):
                 if not open_configured_application(action):
                     self._logger.warning(

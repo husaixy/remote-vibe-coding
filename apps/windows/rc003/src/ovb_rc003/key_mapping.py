@@ -17,7 +17,7 @@ Default table matches the reference app's action choices:
 | 确定 | Return |
 | 返回 | Delete（退格） |
 | 音量 + / − | 系统音量 + / − |
-| 主页 | 显示桌面 |
+| 主页 | 收起 Codex；长按唤醒 Codex 并聚焦主聊天 |
 | 菜单 | 上下文菜单 |
 | TV | 应用切换 |
 
@@ -55,6 +55,8 @@ class ActionKind(str, Enum):
     VOICE = "voice"
     OPEN_REMOTE_MIC = "open_remote_mic"
     OPEN_CODEX = "open_codex"
+    MINIMIZE_CODEX = "minimize_codex"
+    FOCUS_CODEX_MAIN_CHAT = "focus_codex_main_chat"
     OPEN_CLAUDE = "open_claude"
     OPEN_CMUX = "open_cmux"
     OPEN_WECHAT = "open_wechat"
@@ -119,6 +121,8 @@ APPLICATION_ACTIONS = frozenset(
     {
         ActionKind.OPEN_REMOTE_MIC,
         ActionKind.OPEN_CODEX,
+        ActionKind.MINIMIZE_CODEX,
+        ActionKind.FOCUS_CODEX_MAIN_CHAT,
         ActionKind.OPEN_CLAUDE,
         ActionKind.OPEN_CMUX,
         ActionKind.OPEN_WECHAT,
@@ -288,7 +292,19 @@ def default_button_actions() -> Dict[str, ButtonAction]:
         "back": ButtonAction(ActionKind.DELETE_BACKWARD),
         "volume_up": ButtonAction(ActionKind.SYSTEM_VOLUME_UP),
         "volume_down": ButtonAction(ActionKind.SYSTEM_VOLUME_DOWN),
-        "home": ButtonAction(ActionKind.SHOW_DESKTOP),
+        "home": ButtonAction(ActionKind.MINIMIZE_CODEX),
         "menu": ButtonAction(ActionKind.CONTEXT_MENU),
         "tv": ButtonAction(ActionKind.APP_SWITCHER),
+    }
+
+
+def default_secondary_actions() -> Dict[str, Dict[str, ButtonAction]]:
+    """Secondary gestures shipped by a fresh install or Restore defaults."""
+
+    return {
+        "home": {
+            ButtonTrigger.LONG_PRESS.value: ButtonAction(
+                ActionKind.FOCUS_CODEX_MAIN_CHAT
+            )
+        }
     }

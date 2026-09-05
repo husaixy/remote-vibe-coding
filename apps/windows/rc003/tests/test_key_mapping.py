@@ -26,7 +26,7 @@ class DefaultButtonActionsTests(unittest.TestCase):
             "back": (key_mapping.ActionKind.DELETE_BACKWARD, ()),
             "volume_up": (key_mapping.ActionKind.SYSTEM_VOLUME_UP, ()),
             "volume_down": (key_mapping.ActionKind.SYSTEM_VOLUME_DOWN, ()),
-            "home": (key_mapping.ActionKind.SHOW_DESKTOP, ()),
+            "home": (key_mapping.ActionKind.MINIMIZE_CODEX, ()),
             "menu": (key_mapping.ActionKind.CONTEXT_MENU, ()),
             "tv": (key_mapping.ActionKind.APP_SWITCHER, ()),
         }
@@ -75,6 +75,8 @@ class ButtonActionSerializationTests(unittest.TestCase):
     def test_reference_open_app_actions_are_first_class_actions(self):
         for action_kind in (
             key_mapping.ActionKind.OPEN_CODEX,
+            key_mapping.ActionKind.MINIMIZE_CODEX,
+            key_mapping.ActionKind.FOCUS_CODEX_MAIN_CHAT,
             key_mapping.ActionKind.OPEN_CLAUDE,
             key_mapping.ActionKind.OPEN_CMUX,
             key_mapping.ActionKind.OPEN_CHROME,
@@ -84,6 +86,13 @@ class ButtonActionSerializationTests(unittest.TestCase):
             self.assertEqual(
                 key_mapping.ButtonAction.from_dict(action.to_dict()), action
             )
+
+    def test_home_long_press_defaults_to_focus_codex_main_chat(self):
+        secondary = key_mapping.default_secondary_actions()
+        self.assertEqual(
+            secondary["home"][key_mapping.ButtonTrigger.LONG_PRESS.value].kind,
+            key_mapping.ActionKind.FOCUS_CODEX_MAIN_CHAT,
+        )
 
 
 class GestureBindingLookupTests(unittest.TestCase):

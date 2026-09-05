@@ -659,6 +659,25 @@ class OrdinaryButtonGestureWiringTests(_AppWiringTestCase):
 
         self.assertEqual(calls, [key_mapping.ActionKind.OPEN_CODEX])
 
+    def test_codex_window_actions_use_their_dedicated_executors(self):
+        calls = []
+        original_minimize = app_module.minimize_codex_if_foreground
+        original_focus = app_module.focus_codex_main_chat
+        app_module.minimize_codex_if_foreground = lambda: calls.append("minimize") or True
+        app_module.focus_codex_main_chat = lambda: calls.append("focus") or True
+        try:
+            self.app._apply_button_action(
+                key_mapping.ButtonAction(key_mapping.ActionKind.MINIMIZE_CODEX)
+            )
+            self.app._apply_button_action(
+                key_mapping.ButtonAction(key_mapping.ActionKind.FOCUS_CODEX_MAIN_CHAT)
+            )
+        finally:
+            app_module.minimize_codex_if_foreground = original_minimize
+            app_module.focus_codex_main_chat = original_focus
+
+        self.assertEqual(calls, ["minimize", "focus"])
+
     def test_one_physical_press_emits_one_mapping_action(self):
         calls = []
         original = win32_input.send_key_combo_tap
