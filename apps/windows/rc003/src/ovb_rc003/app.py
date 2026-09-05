@@ -57,6 +57,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
+import time
 from typing import Callable, List, Optional
 
 from . import (
@@ -76,6 +77,7 @@ from . import (
     key_mapping,
     legacy_key_suppressor_windows,
     logging_setup,
+    pnp_recovery_windows,
     raw_input_windows,
     voice_controller,
     wechat_input_method,
@@ -91,6 +93,10 @@ class CleanupIncompleteError(RuntimeError):
     attempted - see the module docstring's "Cleanup ownership" note. Every
     other cleanup step still ran before this is raised.
     """
+
+
+HID_RECOVERY_ATTEMPTS = 33
+HID_RECOVERY_POLL_SECONDS = 0.25
 
 
 def open_configured_application(action: key_mapping.ButtonAction) -> bool:
@@ -211,13 +217,15 @@ class RC003App:
         """
 
         try:
-            paths = raw_input_windows.enumerate_matching_device_paths()
-            device_path = hid_identity.select_single_device_path(paths)
+            device_path = self._resolve_hid_device_path()
         except raw_input_windows.RawInputUnavailableError as exc:
             self._logger.info("startup: Raw Input unavailable; buttons disabled: %s", exc)
             return
         except hid_identity.NoDevicePathFoundError:
-            self._logger.info("startup: no RC003 HID device path found; buttons unavailable")
+            self._logger.info(
+                "startup: no RC003 HID device path found after recovery wait; "
+                "buttons unavailable"
+            )
             return
         except hid_identity.AmbiguousDevicePathError as exc:
             self._logger.info(
@@ -270,6 +278,42 @@ class RC003App:
             self._logger.warning("startup: RC003 voice legacy-key guard unavailable: %s", exc)
             self._legacy_key_suppressor = None
 
+    def _resolve_hid_device_path(self) -> str:
+        """Wait for Windows HID enumeration and recover a disabled devnode once."""
+
+        recovery_attempted = False
+        for attempt in range(HID_RECOVERY_ATTEMPTS):
+            paths = raw_input_windows.enumerate_matching_device_paths()
+            try:
+                device_path = hid_identity.select_single_device_path(paths)
+            except hid_identity.NoDevicePathFoundError:
+                if not recovery_attempted:
+                    recovery_attempted = True
+                    status = pnp_recovery_windows.enable_single_disabled_remote()
+                    if status is pnp_recovery_windows.RecoveryStatus.ENABLED:
+                        self._logger.info(
+                            "startup: re-enabled disabled RC003 Bluetooth device; "
+                            "waiting for HID"
+                        )
+                    elif status is pnp_recovery_windows.RecoveryStatus.AMBIGUOUS:
+                        self._logger.warning(
+                            "startup: HID recovery skipped because multiple matching "
+                            "Bluetooth devices are present"
+                        )
+                    elif status is pnp_recovery_windows.RecoveryStatus.FAILED:
+                        self._logger.warning(
+                            "startup: disabled RC003 Bluetooth device could not be "
+                            "re-enabled"
+                        )
+                if attempt + 1 == HID_RECOVERY_ATTEMPTS:
+                    raise
+                time.sleep(HID_RECOVERY_POLL_SECONDS)
+                continue
+            if attempt:
+                self._logger.info("startup: RC003 HID device path recovered")
+            return device_path
+        raise hid_identity.NoDevicePathFoundError
+
     def _start_hid_report_tap(self) -> None:
         """Start the upstream-derived tap for usages Windows drops.
 
@@ -282,7 +326,9 @@ class RC003App:
         try:
             if tap.start():
                 self._hid_report_tap = tap
-                self._logger.info("startup: RC003 HID report tap enabled")
+                self._logger.info(
+                    "startup: RC003 HID report tap process started; awaiting first report"
+                )
             else:
                 self._logger.info(
                     "startup: RC003 HID report tap unavailable: %s", tap.status
@@ -319,8 +365,9 @@ class RC003App:
             pressed = active - previous
             released = previous - active
             self._direct_hid_usages = set(active)
-        if active:
+        if active and not self._direct_hid_tap_active:
             self._direct_hid_tap_active = True
+            self._logger.info("startup: first RC003 HID report received; buttons healthy")
         for usage in sorted(pressed):
             button = frida_compat.TAP_USAGE_TO_BUTTON[usage]
             if button == "mic":

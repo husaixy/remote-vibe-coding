@@ -88,6 +88,7 @@ def build_launch_command(
     *,
     frozen: Optional[bool] = None,
     executable: Optional[str] = None,
+    repair_hid: bool = False,
 ) -> List[str]:
     """Builds the bridge launch command for the CURRENT process shape.
     Always appends ``--bridge``: the no-argument form of this exe now opens
@@ -111,9 +112,15 @@ def build_launch_command(
         # The same frozen exe handles both modes: with no arguments (or
         # --settings) it opens the settings window, and with --bridge (as
         # launched here) it starts the bridge - see __main__.py's dispatch.
-        return [executable, "--bridge"]
+        command = [executable, "--bridge"]
+        if repair_hid:
+            command.append("--repair-hid")
+        return command
     # The current interpreter, `-m ovb_rc003 --bridge`.
-    return [executable, "-m", "ovb_rc003", "--bridge"]
+    command = [executable, "-m", "ovb_rc003", "--bridge"]
+    if repair_hid:
+        command.append("--repair-hid")
+    return command
 
 
 class LaunchOutcome(Enum):
@@ -219,4 +226,7 @@ def restart_bridge(
         bridge_control.StopOutcome.FAILED,
     }:
         return RestartResult(stop=stop_result)
-    return RestartResult(stop=stop_result, launch=launch_bridge())
+    return RestartResult(
+        stop=stop_result,
+        launch=launch_bridge(build_launch_command(repair_hid=True)),
+    )

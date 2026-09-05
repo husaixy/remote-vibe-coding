@@ -46,6 +46,17 @@ class BuildLaunchCommandTests(unittest.TestCase):
         )
         self.assertNotIn("--settings", command)
 
+    def test_restart_command_requests_hid_recovery(self):
+        command = bridge_launcher.build_launch_command(
+            frozen=True,
+            executable=r"C:\Apps\RemoteMicRC003.exe",
+            repair_hid=True,
+        )
+        self.assertEqual(
+            command,
+            [r"C:\Apps\RemoteMicRC003.exe", "--bridge", "--repair-hid"],
+        )
+
     def test_empty_executable_fails_closed(self):
         with self.assertRaises(bridge_launcher.BridgeLaunchConfigurationError):
             bridge_launcher.build_launch_command(frozen=False, executable="")
@@ -215,14 +226,18 @@ class RestartBridgeTests(unittest.TestCase):
         original_stop = bridge_control.request_bridge_stop
         original_launch = bridge_launcher.launch_bridge
         bridge_control.request_bridge_stop = lambda timeout: order.append("stop") or stop_result
-        bridge_launcher.launch_bridge = lambda: order.append("launch") or launch_result
+        bridge_launcher.launch_bridge = (
+            lambda command: order.append(("launch", command)) or launch_result
+        )
         try:
             result = bridge_launcher.restart_bridge(stop_timeout_seconds=2.0)
         finally:
             bridge_control.request_bridge_stop = original_stop
             bridge_launcher.launch_bridge = original_launch
 
-        self.assertEqual(order, ["stop", "launch"])
+        self.assertEqual(order[0], "stop")
+        self.assertEqual(order[1][0], "launch")
+        self.assertIn("--repair-hid", order[1][1])
         self.assertIs(result.launch, launch_result)
 
     def test_timeout_fails_closed_without_launching(self):
@@ -247,7 +262,7 @@ class RestartBridgeTests(unittest.TestCase):
         original_stop = bridge_control.request_bridge_stop
         original_launch = bridge_launcher.launch_bridge
         bridge_control.request_bridge_stop = lambda timeout: stop_result
-        bridge_launcher.launch_bridge = lambda: launch_result
+        bridge_launcher.launch_bridge = lambda command: launch_result
         try:
             result = bridge_launcher.restart_bridge()
         finally:

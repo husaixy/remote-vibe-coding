@@ -103,6 +103,7 @@ def _dry_run() -> int:
         identity,
         key_mapping,
         logging_setup,
+        pnp_recovery_windows,
         qt_settings_app,
         raw_input_windows,
         remote_layout,
@@ -232,7 +233,15 @@ def main() -> None:
 
         flag_index = args.index("--rc003-hid-injector")
         raise SystemExit(frida_compat.injector_main(args[flag_index + 1 :]))
+    if "--repair-disabled-remote" in args:
+        from . import pnp_recovery_windows
+
+        raise SystemExit(pnp_recovery_windows.elevated_recovery_main())
     if "--bridge" in args:
+        if "--repair-hid" in args:
+            from . import pnp_recovery_windows
+
+            pnp_recovery_windows.prepare_explicit_restart_recovery()
         _run_bridge()
         return
 

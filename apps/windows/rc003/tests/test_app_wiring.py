@@ -26,6 +26,7 @@ import tempfile
 import threading
 import time
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from ovb_rc003 import app as app_module
@@ -990,6 +991,70 @@ class StartHidListenerOwnershipTests(_AppWiringTestCase):
         self.assertIsNone(self.app._hid_listener)
         self.assertEqual(fake_listener.start_calls, 1)
 
+
+class HidDeviceRecoveryTests(_AppWiringTestCase):
+    def test_missing_hid_reenables_device_then_waits_for_path(self):
+        recovered_path = r"\\?\HID#VID_2717&PID_32B8#recovered#{guid}"
+        enumerations = iter(([], [recovered_path]))
+        with (
+            mock.patch.object(
+                app_module.raw_input_windows,
+                "enumerate_matching_device_paths",
+                side_effect=lambda: next(enumerations),
+            ),
+            mock.patch.object(
+                app_module.pnp_recovery_windows,
+                "enable_single_disabled_remote",
+                return_value=app_module.pnp_recovery_windows.RecoveryStatus.ENABLED,
+            ) as recover,
+            mock.patch.object(app_module.time, "sleep") as sleep,
+        ):
+            path = self.app._resolve_hid_device_path()
+
+        self.assertEqual(path, recovered_path)
+        recover.assert_called_once_with()
+        sleep.assert_called_once_with(app_module.HID_RECOVERY_POLL_SECONDS)
+
+    def test_missing_hid_recovery_is_attempted_only_once_before_timeout(self):
+        with (
+            mock.patch.object(
+                app_module.raw_input_windows,
+                "enumerate_matching_device_paths",
+                return_value=[],
+            ) as enumerate_paths,
+            mock.patch.object(
+                app_module.pnp_recovery_windows,
+                "enable_single_disabled_remote",
+                return_value=app_module.pnp_recovery_windows.RecoveryStatus.NOT_DISABLED,
+            ) as recover,
+            mock.patch.object(app_module.time, "sleep"),
+        ):
+            with self.assertRaises(app_module.hid_identity.NoDevicePathFoundError):
+                self.app._resolve_hid_device_path()
+
+        self.assertEqual(enumerate_paths.call_count, app_module.HID_RECOVERY_ATTEMPTS)
+        recover.assert_called_once_with()
+
+    def test_ambiguous_hid_paths_fail_closed_without_device_mutation(self):
+        paths = [
+            r"\\?\HID#VID_2717&PID_32B8#one#{guid}",
+            r"\\?\HID#VID_2717&PID_32B8#two#{guid}",
+        ]
+        with (
+            mock.patch.object(
+                app_module.raw_input_windows,
+                "enumerate_matching_device_paths",
+                return_value=paths,
+            ),
+            mock.patch.object(
+                app_module.pnp_recovery_windows,
+                "enable_single_disabled_remote",
+            ) as recover,
+        ):
+            with self.assertRaises(app_module.hid_identity.AmbiguousDevicePathError):
+                self.app._resolve_hid_device_path()
+
+        recover.assert_not_called()
 
 class VoiceCleanupFailurePreservesPendingStateTests(_AppWiringTestCase):
     """XRBM-019 review round 1 P1 #4: reset()/on_audio_stopped() clear
