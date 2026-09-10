@@ -83,9 +83,9 @@ PCM。该结论不依赖相同外观或 VID/PID 推断；更多固件版本和�
 如果只能唤醒窗口、无法输入文字，先检查第 2、3 步；如果普通按键也全部无效，按客户端文档检查按键通道。
 完整说明见 [主页键控制 Codex](apps/windows/rc003/README.md#主页键控制-codex)。
 
-## 下一版 UI 设计稿
+## 设置界面设计
 
-[打开极简扁平化交互稿](docs/design/minimal-settings.html)（下载后用浏览器打开），以及 [设计说明](docs/design/minimal-settings.md)。这是待评审的界面方案，页面中的设备状态为演示数据。
+当前 Windows 设置窗口已采用极简扁平化界面：统一浅色语义色板、顶部导航和单个选中按键编辑器。视觉与交互约束见 [设计说明](docs/design/minimal-settings.md)；[早期交互稿](docs/design/minimal-settings.html) 仅保留为设计过程记录，其中的设备状态均为演示数据。
 
 详细配对、虚拟声卡配置、按键映射和故障排查见
 [`apps/windows/rc003/README.md`](apps/windows/rc003/README.md)。

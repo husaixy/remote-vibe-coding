@@ -23,6 +23,20 @@ Item {
             y: tokens.spacingLarge
             spacing: tokens.spacingLarge
 
+            Label {
+                text: qsTr("连接与语音")
+                font.pixelSize: tokens.fontSizePageTitle
+                font.weight: Font.Medium
+                color: tokens.textPrimary
+            }
+            Label {
+                Layout.fillWidth: true
+                text: qsTr("连接你的设备，选择语音去向并管理桥接进程。")
+                color: tokens.textSecondary
+                font.pixelSize: tokens.fontSizeBody
+            }
+            Rectangle { Layout.fillWidth: true; height: 1; color: tokens.border }
+
             // -- Active device -------------------------------------------------
             Rectangle {
                 Layout.fillWidth: true
@@ -41,7 +55,7 @@ Item {
                     Label {
                         text: qsTr("当前设备")
                         font.pixelSize: tokens.fontSizeTitle
-                        font.bold: true
+                        font.weight: Font.Medium
                         color: tokens.textPrimary
                     }
                     ComboBox {
@@ -91,7 +105,7 @@ Item {
                     Label {
                         text: qsTr("桥接进程")
                         font.pixelSize: tokens.fontSizeTitle
-                        font.bold: true
+                        font.weight: Font.Medium
                         color: tokens.textPrimary
                     }
                     Label {
@@ -139,7 +153,7 @@ Item {
                     Label {
                         text: qsTr("语音输出设备")
                         font.pixelSize: tokens.fontSizeTitle
-                        font.bold: true
+                        font.weight: Font.Medium
                         color: tokens.textPrimary
                     }
                     Label {
@@ -179,7 +193,7 @@ Item {
                     Label {
                         text: qsTr("麦克风与语音")
                         font.pixelSize: tokens.fontSizeTitle
-                        font.bold: true
+                        font.weight: Font.Medium
                         color: tokens.textPrimary
                     }
 
@@ -256,7 +270,7 @@ Item {
                     Label {
                         text: qsTr("DJI Mic 2 录音输入")
                         font.pixelSize: tokens.fontSizeTitle
-                        font.bold: true
+                        font.weight: Font.Medium
                         color: tokens.textPrimary
                     }
                     Label {

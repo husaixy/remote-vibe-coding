@@ -1,7 +1,4 @@
-// Semantic design tokens (XRBM-030 DESIGN_VARIANCE 4 / VISUAL_DENSITY 5):
-// colors derived from the OS SystemPalette so light/dark mode is followed
-// automatically (no hand-picked dark-mode color set to keep in sync), plus
-// fixed corner-radius/spacing/font-size constants shared by every page.
+// Minimal, flat visual tokens shared by every settings page.
 // Instantiated exactly once in main.qml and passed down to each page as a
 // `tokens` property - deliberately NOT a pragma Singleton, so this stays a
 // plain, implicitly-directory-imported QML type with no module/qmldir
@@ -11,40 +8,38 @@ import QtQuick
 QtObject {
     id: tokens
 
-    property SystemPalette palette: SystemPalette {
-        colorGroup: SystemPalette.Active
-    }
-
-    property color background: palette.window
-    property color surface: Qt.tint(palette.window, Qt.rgba(palette.windowText.r, palette.windowText.g, palette.windowText.b, 0.035))
-    property color textPrimary: palette.windowText
-    property color textSecondary: Qt.rgba(palette.windowText.r, palette.windowText.g, palette.windowText.b, 0.62)
-    property color disabledText: Qt.rgba(palette.windowText.r, palette.windowText.g, palette.windowText.b, 0.38)
-    property color accent: palette.highlight
-    property color accentText: palette.highlightedText
-    property color border: Qt.rgba(palette.windowText.r, palette.windowText.g, palette.windowText.b, 0.16)
-    // Text-input/ComboBox field background (QQC2's "base" palette role) -
-    // distinct from `surface` (used for card backgrounds).
-    property color fieldBackground: palette.base
-    property color buttonBackground: palette.button
-    property color buttonText: palette.buttonText
+    property color background: "#FFFFFF"
+    property color surface: "#F8FAFC"
+    property color surfaceSubtle: "#FBFCFE"
+    property color textPrimary: "#18202B"
+    property color textSecondary: "#667085"
+    property color disabledText: "#98A2B3"
+    property color accent: "#1677E8"
+    property color accentSoft: "#EFF6FF"
+    property color accentText: "#FFFFFF"
+    property color border: "#E1E7EF"
+    property color fieldBackground: "#FFFFFF"
+    property color buttonBackground: "#FFFFFF"
+    property color buttonText: textPrimary
 
     // Semantic colors: only ever used for a real state (a real save error,
     // a real save/launch success, the fixed identity of the mic hotspot) -
     // never decorative (XRBM-030 Design read: "错误/成功只用于真实状态").
     property color voiceAccent: "#F2914A"
-    property color successColor: "#2E7D32"
-    property color errorColor: "#C62828"
+    property color successColor: "#22875A"
+    property color errorColor: "#C43D4B"
 
-    property int cornerRadiusSmall: 8
-    property int cornerRadiusLarge: 12
+    property int cornerRadiusSmall: 6
+    property int cornerRadiusLarge: 8
 
     property int spacingTiny: 4
     property int spacingSmall: 8
     property int spacingMedium: 12
-    property int spacingLarge: 20
+    property int spacingLarge: 24
 
-    property int fontSizeSmall: 11
-    property int fontSizeBody: 13
-    property int fontSizeTitle: 16
+    property int fontSizeSmall: 12
+    property int fontSizeBody: 14
+    property int fontSizeTitle: 18
+    property int fontSizePageTitle: 26
+    property string fontFamily: "Microsoft YaHei UI"
 }

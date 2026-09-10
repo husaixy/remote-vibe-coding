@@ -1509,11 +1509,7 @@ def _find_mapping_row_combo(mapping_list, button_id, model):
     current_item = mapping_list.property("currentItem")
     if current_item is None:
         return None
-    for child in current_item.children():
-        for grandchild in child.children():
-            if grandchild.objectName() == "actionCombo_" + button_id:
-                return grandchild
-    return None
+    return _find_child_by_object_name(current_item, "actionCombo_" + button_id)
 
 
 classes = m._load_qt_classes()

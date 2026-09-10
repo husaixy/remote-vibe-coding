@@ -83,8 +83,8 @@ Item {
                 Label {
                     Layout.fillWidth: true
                     text: qsTr("检查与修复")
-                    font.pixelSize: tokens.fontSizeTitle
-                    font.bold: true
+                    font.pixelSize: tokens.fontSizePageTitle
+                    font.weight: Font.Medium
                     color: tokens.textPrimary
                 }
                 BusyIndicator {
@@ -157,7 +157,7 @@ Item {
                     Label {
                         text: qsTr("普通按键前提")
                         font.pixelSize: tokens.fontSizeBody
-                        font.bold: true
+                        font.weight: Font.Medium
                         color: tokens.textPrimary
                     }
                     Repeater {
@@ -205,7 +205,7 @@ Item {
                     Label {
                         text: qsTr("RC003 语音链路前提")
                         font.pixelSize: tokens.fontSizeBody
-                        font.bold: true
+                        font.weight: Font.Medium
                         color: tokens.textPrimary
                     }
                     Repeater {
@@ -253,7 +253,7 @@ Item {
                     Label {
                         text: qsTr("无线麦克风输入")
                         font.pixelSize: tokens.fontSizeBody
-                        font.bold: true
+                        font.weight: Font.Medium
                         color: tokens.textPrimary
                     }
                     Label {
@@ -312,7 +312,7 @@ Item {
                     Label {
                         text: qsTr("Windows 听写前提")
                         font.pixelSize: tokens.fontSizeBody
-                        font.bold: true
+                        font.weight: Font.Medium
                         color: tokens.textPrimary
                     }
                     Repeater {
@@ -373,7 +373,7 @@ Item {
                     Label {
                         text: qsTr("可选：VB-CABLE 虚拟音频驱动")
                         font.pixelSize: tokens.fontSizeBody
-                        font.bold: true
+                        font.weight: Font.Medium
                         color: tokens.textPrimary
                     }
                     Label {

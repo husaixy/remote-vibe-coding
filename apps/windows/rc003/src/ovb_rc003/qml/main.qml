@@ -22,15 +22,17 @@ import OvbRc003Settings 1.0
 ApplicationWindow {
     id: window
     title: qsTr("Remote Vibe Coding 设置")
-    width: 900
-    height: 680
-    minimumWidth: 780
-    minimumHeight: 600
+    width: 1120
+    height: 760
+    minimumWidth: 900
+    minimumHeight: 640
     visible: true
 
     property Tokens tokens: Tokens {}
 
     color: tokens.background
+    font.family: "Microsoft YaHei"
+    font.pixelSize: tokens.fontSizeBody
 
     // XRBM-030 RETRY 1 blocker 2: Qt Quick Controls' "FluentWinUI3" style
     // resolves its OWN default text/background colors from
@@ -66,24 +68,52 @@ ApplicationWindow {
             id: tabBar
             objectName: "tabBar"  // lets tooling (e.g. a screenshot script) drive tab switching via QObject.findChild
             Layout.fillWidth: true
+            Layout.preferredHeight: 64
+            spacing: 0
+            background: Rectangle {
+                color: tokens.background
+                Rectangle {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    height: 1
+                    color: tokens.border
+                }
+            }
 
             TabButton {
                 objectName: "connectionTabButton"  // test hook: for the rendered contrast regression test
-                text: qsTr("连接")
+                text: qsTr("连接与语音")
                 Accessible.name: text
+                font.weight: checked ? Font.DemiBold : Font.Normal
+                font.pixelSize: tokens.fontSizeBody
+                contentItem: Text { text: parent.text; color: parent.checked ? tokens.accent : tokens.textSecondary; font: parent.font; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                background: Rectangle { color: "transparent"; Rectangle { width: 88; height: 3; radius: 1.5; color: tokens.accent; anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom; visible: parent.parent.checked } }
             }
             TabButton {
                 text: SettingsController.mappingPageTitle
                 Accessible.name: text
+                font.weight: checked ? Font.DemiBold : Font.Normal
+                font.pixelSize: tokens.fontSizeBody
+                contentItem: Text { text: parent.text; color: parent.checked ? tokens.accent : tokens.textSecondary; font: parent.font; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                background: Rectangle { color: "transparent"; Rectangle { width: 88; height: 3; radius: 1.5; color: tokens.accent; anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom; visible: parent.parent.checked } }
             }
             TabButton {
                 text: qsTr("权限")
                 Accessible.name: text
+                font.weight: checked ? Font.DemiBold : Font.Normal
+                font.pixelSize: tokens.fontSizeBody
+                contentItem: Text { text: parent.text; color: parent.checked ? tokens.accent : tokens.textSecondary; font: parent.font; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                background: Rectangle { color: "transparent"; Rectangle { width: 64; height: 3; radius: 1.5; color: tokens.accent; anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom; visible: parent.parent.checked } }
             }
             TabButton {
                 objectName: "diagnosticsTabButton"  // test hook: for driving this tab in the offscreen screenshot/interaction tests
                 text: qsTr("检查与修复")
                 Accessible.name: text
+                font.weight: checked ? Font.DemiBold : Font.Normal
+                font.pixelSize: tokens.fontSizeBody
+                contentItem: Text { text: parent.text; color: parent.checked ? tokens.accent : tokens.textSecondary; font: parent.font; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                background: Rectangle { color: "transparent"; Rectangle { width: 88; height: 3; radius: 1.5; color: tokens.accent; anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom; visible: parent.parent.checked } }
             }
         }
 

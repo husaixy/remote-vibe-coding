@@ -24,6 +24,20 @@ Item {
             y: tokens.spacingLarge
             spacing: tokens.spacingLarge
 
+            Label {
+                text: qsTr("权限")
+                font.pixelSize: tokens.fontSizePageTitle
+                font.weight: Font.Medium
+                color: tokens.textPrimary
+            }
+            Label {
+                Layout.fillWidth: true
+                text: qsTr("按需打开 Windows 的公开设置页面，不显示无法验证的授权状态。")
+                color: tokens.textSecondary
+                font.pixelSize: tokens.fontSizeBody
+            }
+            Rectangle { Layout.fillWidth: true; height: 1; color: tokens.border }
+
             Rectangle {
                 Layout.fillWidth: true
                 radius: tokens.cornerRadiusLarge
@@ -41,7 +55,7 @@ Item {
                     Label {
                         text: qsTr("所需权限")
                         font.pixelSize: tokens.fontSizeTitle
-                        font.bold: true
+                        font.weight: Font.Medium
                         color: tokens.textPrimary
                     }
 
@@ -157,7 +171,7 @@ Item {
                     Label {
                         text: qsTr("诊断")
                         font.pixelSize: tokens.fontSizeTitle
-                        font.bold: true
+                        font.weight: Font.Medium
                         color: tokens.textPrimary
                     }
                     RowLayout {

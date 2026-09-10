@@ -400,7 +400,7 @@ def _load_qt_classes() -> dict:
             Signal,
             Slot,
         )
-        from PySide6.QtGui import QGuiApplication
+        from PySide6.QtGui import QGuiApplication, QIcon
         from PySide6.QtQml import QQmlApplicationEngine, qmlRegisterSingletonInstance
         from PySide6.QtQuickControls2 import QQuickStyle
     except ImportError as exc:
@@ -1758,6 +1758,7 @@ def _load_qt_classes() -> dict:
 
     _qt_classes_cache = {
         "QGuiApplication": QGuiApplication,
+        "QIcon": QIcon,
         "QQmlApplicationEngine": QQmlApplicationEngine,
         "QQuickStyle": QQuickStyle,
         "QUrl": QUrl,
@@ -1807,6 +1808,15 @@ def run_settings_window() -> int:
     QQuickStyle.setStyle("FluentWinUI3")
 
     app = QGuiApplication.instance() or QGuiApplication(sys.argv)
+
+    # The product icon is stored beside the QML so source and frozen builds
+    # use the same asset. Keep the native Windows title bar for reliable
+    # drag/resize/DPI behavior while giving it the new flat product identity.
+    qml_dir = _qml_directory()
+    QIcon = classes.get("QIcon")
+    icon_path = qml_dir / "app-icon.svg"
+    if QIcon is not None and icon_path.is_file() and hasattr(app, "setWindowIcon"):
+        app.setWindowIcon(QIcon(str(icon_path)))
 
     model = ButtonMappingModel()
     controller = SettingsController(model)
@@ -1866,7 +1876,6 @@ def run_settings_window() -> int:
         )
 
         engine = QQmlApplicationEngine()
-        qml_dir = _qml_directory()
         engine.addImportPath(str(qml_dir))
 
         main_qml = qml_dir / "main.qml"
