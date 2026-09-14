@@ -149,6 +149,15 @@ class LegacyKeySuppressor:
         self._consume_wait_seconds = max(0.0, float(consume_wait_seconds))
         self._armed_events: List[_ArmedKeyEvent] = []
         self._armed_events_lock = threading.Lock()
+        # A low-level hook cannot identify the source device.  Only the first
+        # key-down for an RC003-shaped key may therefore wait for the
+        # device-scoped tap/Raw Input arm.  Once that edge is classified,
+        # every repeat and the release must follow the same decision without
+        # waiting.  Otherwise a held physical arrow key queues one 100 ms
+        # hook wait per auto-repeat and its key-up reaches the foreground
+        # several seconds late.
+        self._owned_key_holds: set[tuple[int, int, bool]] = set()
+        self._passthrough_key_holds: set[tuple[int, int, bool]] = set()
         self._suppressed_physical_keys: set[int] = set()
         self._injected_duplicate_deadlines: dict[int, float] = {}
         # Raw Input and the low-level hook run on different threads, so
@@ -344,12 +353,10 @@ class LegacyKeySuppressor:
 
         The low-level hook fires before the Raw Input ``WM_INPUT`` for the
         same physical press, on a different thread, so the arming edge from
-        ``arm_key_event`` is normally not there yet when the hook runs. Wait
-        a short window for it (upstream correlates the same way) so a quick
-        remote press is not turned into a double action by the hook releasing
-        the original key before the app's replacement edge arrives. The
-        window only applies to the RC003 key set; every other key passes
-        through with no latency.
+        ``arm_key_event`` is normally not there yet when the hook runs. Only
+        the first key-down waits for that arm. Once classified as remote or
+        ordinary keyboard input, repeats and key-up follow the same decision
+        immediately so a held host arrow key cannot build a hook backlog.
         """
 
         if int(vk_code) in self._suppress_vk_codes:
@@ -361,10 +368,25 @@ class LegacyKeySuppressor:
             return False
         if self._rc003_vk_codes is not None and int(vk_code) not in self._rc003_vk_codes:
             return False
+        identity = (int(vk_code), int(scan_code), bool(extended))
         effective_wait = (
             self._consume_wait_seconds if wait_seconds is None else max(0.0, float(wait_seconds))
         )
         with self._armed_events_lock:
+            if identity in self._passthrough_key_holds:
+                if not is_pressed:
+                    self._passthrough_key_holds.discard(identity)
+                return False
+            if identity in self._owned_key_holds:
+                if not is_pressed:
+                    self._owned_key_holds.discard(identity)
+                return True
+            # An orphan release can occur when the service starts while a
+            # host key is already held.  Delaying it is always worse than
+            # forwarding it, and a real remote release already has an owned
+            # hold established by its matched key-down.
+            if not is_pressed:
+                return False
             deadline = time.monotonic() + effective_wait
             while True:
                 now = time.monotonic()
@@ -372,6 +394,10 @@ class LegacyKeySuppressor:
                     vk_code, scan_code, extended, is_pressed, now
                 )
                 if matched or now >= deadline:
+                    if matched:
+                        self._owned_key_holds.add(identity)
+                    else:
+                        self._passthrough_key_holds.add(identity)
                     elapsed = now - deadline + effective_wait
                     _logger.info(
                         "consume key edge: vk=0x%X scan=0x%X ext=%s pressed=%s "
@@ -496,6 +522,8 @@ class LegacyKeySuppressor:
         self._stop_event.set()
         with self._armed_events_lock:
             self._armed_events.clear()
+            self._owned_key_holds.clear()
+            self._passthrough_key_holds.clear()
             self._suppressed_physical_keys.clear()
             self._injected_duplicate_deadlines.clear()
         if self._thread is None:

@@ -127,13 +127,19 @@ class LegacyKeySuppressorDecisionTests(unittest.TestCase):
             [(0xFF, 0x6A, True, True), (0xFF, 0x6A, True, False)],
         )
 
-    def test_armed_raw_input_edge_is_consumed_once_and_only_with_exact_identity(self):
+    def test_armed_raw_input_edge_owns_repeats_until_release(self):
         gate = suppressor.LegacyKeySuppressor({0x74})
         gate.arm_key_event(0x26, 0x48, True, True)
 
         self.assertFalse(gate.consume_armed_key_event(0x26, 0x48, False, True))
         self.assertTrue(gate.consume_armed_key_event(0x26, 0x48, True, True))
-        self.assertFalse(gate.consume_armed_key_event(0x26, 0x48, True, True))
+        self.assertTrue(gate.consume_armed_key_event(0x26, 0x48, True, True))
+        self.assertTrue(gate.consume_armed_key_event(0x26, 0x48, True, False))
+        self.assertFalse(
+            gate.consume_armed_key_event(
+                0x26, 0x48, True, True, wait_seconds=0.0
+            )
+        )
 
     def test_armed_five_is_left_to_the_dedicated_voice_suppressor(self):
         gate = suppressor.LegacyKeySuppressor(
@@ -172,8 +178,10 @@ class LegacyKeySuppressorRaceTests(unittest.TestCase):
         finally:
             thread.join(timeout=2)
         self.assertTrue(matched)
-        # The edge is consumed exactly once.
-        self.assertFalse(gate.consume_armed_key_event(0x26, 0x48, True, True))
+        # The arm is consumed once, then the same physical hold remains owned
+        # through auto-repeat and release without another wait.
+        self.assertTrue(gate.consume_armed_key_event(0x26, 0x48, True, True))
+        self.assertTrue(gate.consume_armed_key_event(0x26, 0x48, True, False))
 
     def test_no_recent_arm_returns_immediately_without_blocking(self):
         gate = suppressor.LegacyKeySuppressor({0x74})
@@ -217,6 +225,32 @@ class LegacyKeySuppressorRaceTests(unittest.TestCase):
         finally:
             thread.join(timeout=2)
         self.assertTrue(matched)
+
+    def test_unmatched_host_hold_waits_only_once_and_releases_immediately(self):
+        gate = suppressor.LegacyKeySuppressor(
+            {0x74},
+            rc003_vk_codes=frozenset({0x74, 0x26, 0x27, 0x25, 0x28}),
+            consume_wait_seconds=10.0,
+        )
+
+        # Classify the first host key-down as pass-through without sleeping.
+        self.assertFalse(
+            gate.consume_armed_key_event(
+                0x27, 0x4D, True, True, wait_seconds=0.0
+            )
+        )
+
+        start = time.monotonic()
+        for _ in range(50):
+            self.assertFalse(gate.consume_armed_key_event(0x27, 0x4D, True, True))
+        self.assertFalse(gate.consume_armed_key_event(0x27, 0x4D, True, False))
+        self.assertLess(time.monotonic() - start, 0.25)
+
+        # The release clears the pass-through hold, so a later RC003 press can
+        # still be armed and owned normally.
+        gate.arm_key_event(0x27, 0x4D, True, True)
+        self.assertTrue(gate.consume_armed_key_event(0x27, 0x4D, True, True))
+        self.assertTrue(gate.consume_armed_key_event(0x27, 0x4D, True, False))
 
 
 class LegacyKeySuppressorLifecycleTests(unittest.TestCase):
