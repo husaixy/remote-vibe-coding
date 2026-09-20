@@ -49,6 +49,7 @@ OutputBaseFilename=RemoteMicRC003Setup-{#AppVersion}-unsigned
 OutputDir=..\dist\installer
 UninstallDisplayName={#AppName}
 UninstallDisplayIcon={app}\{#AppExeName}
+SetupIconFile=..\assets\app-icon.ico
 CloseApplications=yes
 RestartApplications=no
 
@@ -77,12 +78,12 @@ Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: 
 ; neither silently starts bridge mode (BLE/HID/audio) without the user
 ; having seen/confirmed configuration first. The exe's no-argument form
 ; already opens Settings; --settings is kept explicit for clarity.
-Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Parameters: "--settings"
-Name: "{group}\{#AppName} 设置"; Filename: "{app}\{#AppExeName}"; Parameters: "--settings"
-Name: "{group}\启动 {#AppName}"; Filename: "{app}\{#AppExeName}"; Parameters: "--bridge"
+Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Parameters: "--settings"; IconFilename: "{app}\{#AppExeName}"; IconIndex: 0
+Name: "{group}\{#AppName} 设置"; Filename: "{app}\{#AppExeName}"; Parameters: "--settings"; IconFilename: "{app}\{#AppExeName}"; IconIndex: 0
+Name: "{group}\启动 {#AppName}"; Filename: "{app}\{#AppExeName}"; Parameters: "--bridge"; IconFilename: "{app}\{#AppExeName}"; IconIndex: 0
 Name: "{group}\停止 {#AppName}"; Filename: "powershell.exe"; Parameters: "-ExecutionPolicy Bypass -File ""{app}\stop-app.ps1"" -AppPath ""{app}"""; WorkingDir: "{app}"; Flags: runminimized
 Name: "{group}\卸载 {#AppName}"; Filename: "{uninstallexe}"
-Name: "{userdesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Parameters: "--settings"; Tasks: desktopicon
+Name: "{userdesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Parameters: "--settings"; Tasks: desktopicon; IconFilename: "{app}\{#AppExeName}"; IconIndex: 0
 ; Deliberately no {userstartup} icon anywhere in this file.
 
 [Run]

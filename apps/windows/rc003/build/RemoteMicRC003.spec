@@ -24,6 +24,7 @@ SRC_ROOT = RC003_ROOT / "src"
 REPO_ROOT = RC003_ROOT.parents[2]
 REMOTE_PHOTO = REPO_ROOT / "Resources" / "RC003-remote-photo.png"
 QML_SOURCE_DIR = SRC_ROOT / "ovb_rc003" / "qml"
+APP_ICON = RC003_ROOT / "assets" / "app-icon.ico"
 DEVICE_PROFILES_DIR = REPO_ROOT / "device-profiles"
 # XRBM-031: build/fetch-vb-cable.ps1 (a REQUIRED step in both
 # build-candidate.ps1 and windows-rc003-ci.yml, run before this spec) writes
@@ -202,6 +203,7 @@ exe = EXE(
     strip=False,
     upx=False,
     console=False,
+    icon=str(APP_ICON) if APP_ICON.is_file() else None,
 )
 
 coll = COLLECT(
