@@ -1335,6 +1335,24 @@ def _load_qt_classes() -> dict:
             )
 
         @Slot()
+        def applyCodexMicroPreset(self) -> None:
+            """Load the Codex-focused preset into the editor only.
+
+            Matching restoreDefaults(), this remains reversible until the
+            user explicitly saves it.
+            """
+
+            preset = settings_ui.codex_micro_display_state()
+            self._model.load_display_map(
+                preset.button_display_map,
+                preset.secondary_display_map,
+            )
+            self._set_error_message("")
+            self._set_status_message(
+                "已应用 Codex Micro 风格预设，尚未保存。请先在 Codex 中按说明绑定快捷键，再点击「保存映射」。"
+            )
+
+        @Slot()
         def openLogLocation(self) -> None:
             result = logging_setup.open_log_location()
             self._set_status_message(settings_ui.describe_log_open_result(result))

@@ -83,6 +83,14 @@ PCM。该结论不依赖相同外观或 VID/PID 推断；更多固件版本和�
 如果只能唤醒窗口、无法输入文字，先检查第 2、3 步；如果普通按键也全部无效，按客户端文档检查按键通道。
 完整说明见 [主页键控制 Codex](apps/windows/rc003/README.md#主页键控制-codex)。
 
+### Codex Micro 风格预设
+
+在“按键映射”页点击 **应用 Codex 预设**，可以一次载入面向 Codex 的遥控器布局。
+这一步只更新页面中的待保存映射；确认无误后仍需点击“保存映射”。预设不会读取或
+修改 Codex 的私有配置，首次使用需要在 Codex 的 **设置 → 键盘快捷键** 中手动绑定
+命令。完整的按键分配与快捷键表见
+[Codex Micro 风格预设](apps/windows/rc003/README.md#codex-micro-风格预设)。
+
 ## 设置界面设计
 
 当前 Windows 设置窗口已采用极简扁平化界面：统一浅色语义色板、顶部导航和单个选中按键编辑器。视觉与交互约束见 [设计说明](docs/design/minimal-settings.md)；[早期交互稿](docs/design/minimal-settings.html) 仅保留为设计过程记录，其中的设备状态均为演示数据。

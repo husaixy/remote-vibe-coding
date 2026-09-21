@@ -67,6 +67,19 @@ _REFERENCE_ACTION_LABELS: Dict[key_mapping.ActionKind, str] = {
     key_mapping.ActionKind.OPEN_CODEX: "打开 Codex",
     key_mapping.ActionKind.MINIMIZE_CODEX: "收起 Codex",
     key_mapping.ActionKind.FOCUS_CODEX_MAIN_CHAT: "唤醒 Codex 并聚焦输入框",
+    key_mapping.ActionKind.CODEX_SEND_MESSAGE: "Codex：发送消息",
+    key_mapping.ActionKind.CODEX_PREVIOUS_RECENT_CHAT: "Codex：上一个最近会话",
+    key_mapping.ActionKind.CODEX_NEXT_RECENT_CHAT: "Codex：下一个最近会话",
+    key_mapping.ActionKind.CODEX_DECREASE_REASONING: "Codex：降低推理强度",
+    key_mapping.ActionKind.CODEX_INCREASE_REASONING: "Codex：提高推理强度",
+    key_mapping.ActionKind.CODEX_APPROVE: "Codex：批准请求",
+    key_mapping.ActionKind.CODEX_DECLINE: "Codex：拒绝请求",
+    key_mapping.ActionKind.CODEX_TOGGLE_SIDEBAR: "Codex：显示 / 隐藏侧边栏",
+    key_mapping.ActionKind.CODEX_SEARCH_CHATS: "Codex：搜索会话",
+    key_mapping.ActionKind.CODEX_CONTINUE_IN_NEW_CHAT: "Codex：在新会话中继续",
+    key_mapping.ActionKind.CODEX_NEW_CHAT: "Codex：新建会话",
+    key_mapping.ActionKind.CODEX_TOGGLE_FAST_MODE: "Codex：切换 Fast 模式",
+    key_mapping.ActionKind.CODEX_TOGGLE_PLAN_MODE: "Codex：切换 Plan 模式",
     key_mapping.ActionKind.OPEN_CLAUDE: "打开 Claude",
     key_mapping.ActionKind.OPEN_CMUX: "打开 cmux",
     key_mapping.ActionKind.OPEN_WECHAT: "打开微信",
@@ -347,6 +360,78 @@ def default_display_state() -> DefaultDisplayState:
         secondary_display_map=secondary_display_map,
         hotkey_text=hotkey.DEFAULT_VOICE_HOTKEY.serialize(),
         trigger_mode_label=_TRIGGER_MODE_LABELS[key_mapping.VoiceTriggerMode.TOGGLE],
+    )
+
+
+def codex_micro_display_state() -> DefaultDisplayState:
+    """Return the optional Codex-focused preset without persisting it.
+
+    Keep left/right as ordinary arrows so the remote can still edit text.
+    The remaining controls mirror the useful Codex Micro commands while
+    preserving the established Home-key minimize/focus gesture.
+    """
+
+    state = default_display_state()
+    button_display_map = dict(state.button_display_map)
+    button_display_map.update(
+        {
+            "power": _action_to_display(
+                key_mapping.ButtonAction(key_mapping.ActionKind.CODEX_TOGGLE_FAST_MODE)
+            ),
+            "up": _action_to_display(
+                key_mapping.ButtonAction(
+                    key_mapping.ActionKind.CODEX_PREVIOUS_RECENT_CHAT
+                )
+            ),
+            "down": _action_to_display(
+                key_mapping.ButtonAction(key_mapping.ActionKind.CODEX_NEXT_RECENT_CHAT)
+            ),
+            "ok": _action_to_display(
+                key_mapping.ButtonAction(key_mapping.ActionKind.CODEX_SEND_MESSAGE)
+            ),
+            "back": _action_to_display(
+                key_mapping.ButtonAction(key_mapping.ActionKind.ESCAPE)
+            ),
+            "volume_up": _action_to_display(
+                key_mapping.ButtonAction(key_mapping.ActionKind.CODEX_INCREASE_REASONING)
+            ),
+            "volume_down": _action_to_display(
+                key_mapping.ButtonAction(key_mapping.ActionKind.CODEX_DECREASE_REASONING)
+            ),
+            "menu": _action_to_display(
+                key_mapping.ButtonAction(key_mapping.ActionKind.CODEX_TOGGLE_SIDEBAR)
+            ),
+            "tv": _action_to_display(
+                key_mapping.ButtonAction(
+                    key_mapping.ActionKind.CODEX_CONTINUE_IN_NEW_CHAT
+                )
+            ),
+        }
+    )
+    secondary_display_map = {
+        button_id: dict(trigger_map)
+        for button_id, trigger_map in state.secondary_display_map.items()
+    }
+    secondary_display_map["power"]["long_press"] = _action_to_display(
+        key_mapping.ButtonAction(key_mapping.ActionKind.CODEX_TOGGLE_PLAN_MODE)
+    )
+    secondary_display_map["ok"]["long_press"] = _action_to_display(
+        key_mapping.ButtonAction(key_mapping.ActionKind.CODEX_APPROVE)
+    )
+    secondary_display_map["back"]["long_press"] = _action_to_display(
+        key_mapping.ButtonAction(key_mapping.ActionKind.CODEX_DECLINE)
+    )
+    secondary_display_map["menu"]["long_press"] = _action_to_display(
+        key_mapping.ButtonAction(key_mapping.ActionKind.CODEX_SEARCH_CHATS)
+    )
+    secondary_display_map["tv"]["long_press"] = _action_to_display(
+        key_mapping.ButtonAction(key_mapping.ActionKind.CODEX_NEW_CHAT)
+    )
+    return DefaultDisplayState(
+        button_display_map=button_display_map,
+        secondary_display_map=secondary_display_map,
+        hotkey_text=state.hotkey_text,
+        trigger_mode_label=state.trigger_mode_label,
     )
 
 

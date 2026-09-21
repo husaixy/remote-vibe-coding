@@ -307,6 +307,49 @@ VB-CABLE 虚拟音频驱动"卡片会显示 CABLE Input/CABLE Output 两个端�
 应以安装版本的可见命令为准。上述组合键是本项目约定，不是官方默认值。
 桥接只激活窗口并发送快捷键，不读取或修改 Codex 私有配置，也不会自动新建对话。
 
+### Codex Micro 风格预设
+
+“按键映射”页的 **应用 Codex 预设** 会把当前页面切换为下面的布局，但不会立即写盘；
+检查映射后点击“保存映射”或“保存并应用”。“恢复默认”可以在保存前撤销这次选择。
+
+| 遥控器按键 | 单击 | 长按 |
+| --- | --- | --- |
+| 麦克风 | 保持现有按住说话 / 免按住语音模式 | 固定语音生命周期，不分配普通动作 |
+| 上 / 下 | 上一个 / 下一个最近查看的会话 | 未设置 |
+| 左 / 右 | 保留普通方向键，便于编辑文字 | 未设置 |
+| 确认 | 发送 Codex 消息 | 批准当前请求 |
+| 返回 | Escape | 拒绝当前请求 |
+| 音量 + / − | 提高 / 降低推理强度 | 未设置 |
+| 主页 | 收起 Codex | 唤醒 Codex 并聚焦输入框 |
+| 菜单 | 显示或隐藏侧边栏 | 搜索会话 |
+| TV | 在新会话中继续（Fork chat） | 新建会话 |
+| 电源 | 切换 Fast 模式 | 切换 Plan 模式 |
+
+预设动作会先使用 `Ctrl+Alt+Shift+F12` 唤醒并聚焦 Codex，再发送对应命令快捷键。
+请在 Codex 的 **设置 → 键盘快捷键** 中完成以下绑定；命令名称可能随界面语言显示为
+中文或英文：
+
+| Codex 命令 | 绑定快捷键 |
+| --- | --- |
+| Focus main chat / 聚焦主聊天 | `Ctrl+Alt+Shift+F12` |
+| Previous recently viewed chat | `Ctrl+Alt+Shift+F1` |
+| Next recently viewed chat | `Ctrl+Alt+Shift+F2` |
+| Decrease reasoning effort | `Ctrl+Alt+Shift+F3` |
+| Increase reasoning effort | `Ctrl+Alt+Shift+F4` |
+| Approve request | `Ctrl+Alt+Shift+F5` |
+| Decline request | `Ctrl+Alt+Shift+F6` |
+| Toggle sidebar | `Ctrl+Alt+Shift+F7` |
+| Switch chat… | `Ctrl+Alt+Shift+F8` |
+| Fork chat | `Ctrl+Alt+Shift+F9` |
+| New chat | `Ctrl+Alt+Shift+F10` |
+| Toggle Fast mode | `Ctrl+Alt+Shift+F11` |
+| Toggle Plan mode | `Ctrl+Alt+Shift+P` |
+| Send message | `Ctrl+Alt+Shift+Enter` |
+
+上下键使用 Codex 自己的“最近查看会话”命令，不发送普通方向键，因此光标位于输入框时
+也不会误移动。当前第一版采用前后循环，不在遥控器端维护固定的 1–6 槽位；这样不会因
+最近会话排序变化而让遥控器内的编号失效。
+
 ### 默认按键映射与固定行为
 
 RC003 共 **13 个物理按键**（12 个普通按键 + 1 个固定的麦克风按键）；遥控器

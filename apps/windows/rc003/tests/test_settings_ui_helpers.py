@@ -379,6 +379,24 @@ class DefaultDisplayStateTests(unittest.TestCase):
             "唤醒 Codex 并聚焦输入框",
         )
 
+    def test_codex_micro_preset_assigns_navigation_reasoning_and_safe_long_actions(self):
+        from ovb_rc003.settings_ui import codex_micro_display_state
+
+        state = codex_micro_display_state()
+        self.assertEqual(state.button_display_map["up"], "Codex：上一个最近会话")
+        self.assertEqual(state.button_display_map["down"], "Codex：下一个最近会话")
+        self.assertEqual(state.button_display_map["volume_up"], "Codex：提高推理强度")
+        self.assertEqual(state.button_display_map["volume_down"], "Codex：降低推理强度")
+        self.assertEqual(state.button_display_map["ok"], "Codex：发送消息")
+        self.assertEqual(
+            state.secondary_display_map["ok"]["long_press"], "Codex：批准请求"
+        )
+        self.assertEqual(
+            state.secondary_display_map["back"]["long_press"], "Codex：拒绝请求"
+        )
+        self.assertEqual(state.button_display_map["left"], "方向左")
+        self.assertEqual(state.button_display_map["right"], "方向右")
+
 
 class DescribeLaunchResultTests(unittest.TestCase):
     """XRBM-029: settings_ui's status text for each of the four required

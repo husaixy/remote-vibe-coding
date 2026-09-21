@@ -507,6 +507,19 @@ class SettingsControllerTests(unittest.TestCase):
         self.assertEqual(controller.hotkeyText, hotkey.DEFAULT_VOICE_HOTKEY.serialize())
         self.assertEqual(controller.triggerModeIndex, 0)
 
+    def test_apply_codex_micro_preset_updates_editor_without_saving(self):
+        controller, model = self._make_controller()
+        with mock.patch.object(config, "save_key_bindings") as save_bindings:
+            controller.applyCodexMicroPreset()
+
+        display = model.to_display_map()
+        secondary = model.to_secondary_display_map()
+        self.assertEqual(display["up"], "Codex：上一个最近会话")
+        self.assertEqual(display["volume_up"], "Codex：提高推理强度")
+        self.assertEqual(secondary["ok"]["long_press"], "Codex：批准请求")
+        self.assertIn("尚未保存", controller.statusMessage)
+        save_bindings.assert_not_called()
+
     def test_select_button_updates_both_the_controller_and_the_model(self):
         controller, model = self._make_controller()
         controller.selectButton("power")

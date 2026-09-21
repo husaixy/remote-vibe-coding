@@ -113,6 +113,18 @@ def focus_codex_main_chat() -> bool:
     return codex_window.focus_main_chat()
 
 
+def send_codex_command(action_kind: key_mapping.ActionKind) -> bool:
+    """Activate Codex through the public focus shortcut, then send one
+    user-bound command shortcut from the Codex Micro preset.
+    """
+
+    shortcut = key_mapping.CODEX_COMMAND_SHORTCUTS.get(action_kind)
+    if shortcut is None or not focus_codex_main_chat():
+        return False
+    win32_input.send_key_combo_tap(shortcut)
+    return True
+
+
 class RC003App:
     def __init__(self) -> None:
         self._config_root = config.config_root()
@@ -784,6 +796,12 @@ class RC003App:
             elif action.kind == key_mapping.ActionKind.FOCUS_CODEX_MAIN_CHAT:
                 if not focus_codex_main_chat():
                     self._logger.warning("Codex main-chat focus action was not delivered")
+            elif action.kind in key_mapping.CODEX_COMMAND_ACTIONS:
+                if not send_codex_command(action.kind):
+                    self._logger.warning(
+                        "Codex command shortcut was not delivered: action=%s",
+                        action.kind.value,
+                    )
             elif action_executor.is_application_action(action):
                 if not open_configured_application(action):
                     self._logger.warning(

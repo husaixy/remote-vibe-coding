@@ -305,9 +305,8 @@ Item {
                                 anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 14
                                 spacing: 5
                                 Label { text: qsTr("首次使用：在 Codex 中绑定快捷键"); font.weight: Font.Medium; color: tokens.textPrimary }
-                                Label { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: qsTr("设置 → 键盘快捷键 → 聚焦主聊天 / Focus main chat"); color: tokens.textSecondary; font.pixelSize: tokens.fontSizeSmall }
-                                Label { text: qsTr("Ctrl  +  Alt  +  Shift  +  F12"); color: tokens.accent; font.weight: Font.Medium }
-                                Label { text: qsTr("需要手动配置一次；主页键长按约 0.55 秒触发。"); color: tokens.textSecondary; font.pixelSize: tokens.fontSizeSmall }
+                                Label { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: qsTr("聚焦主聊天：Ctrl+Alt+Shift+F12。Codex Micro 预设还会使用 F1–F11、P 和 Enter，均带 Ctrl+Alt+Shift；请按 README 表格绑定对应命令。"); color: tokens.textSecondary; font.pixelSize: tokens.fontSizeSmall }
+                                Label { text: qsTr("快捷键需要手动配置一次；本程序不会读取或修改 Codex 私有设置。"); color: tokens.textSecondary; font.pixelSize: tokens.fontSizeSmall }
                             }
                         }
                         Item { Layout.fillHeight: true }
@@ -320,6 +319,7 @@ Item {
                 Layout.alignment: Qt.AlignRight
                 spacing: tokens.spacingSmall
                 Label { Layout.fillWidth: true; text: qsTr("选择实物按键后编辑；自定义组合键可直接输入或录制。"); color: tokens.textSecondary; font.pixelSize: tokens.fontSizeSmall }
+                Button { id: codexPresetButton; objectName: "codexPresetButton"; text: qsTr("应用 Codex 预设"); onClicked: SettingsController.applyCodexMicroPreset() }
                 Button { text: qsTr("恢复默认"); onClicked: SettingsController.restoreDefaults() }
                 Button { id: saveMappingButton; objectName: "saveMappingButton"; text: qsTr("保存映射"); highlighted: true; onClicked: SettingsController.saveSettings() }
             }

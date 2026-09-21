@@ -57,6 +57,19 @@ class ActionKind(str, Enum):
     OPEN_CODEX = "open_codex"
     MINIMIZE_CODEX = "minimize_codex"
     FOCUS_CODEX_MAIN_CHAT = "focus_codex_main_chat"
+    CODEX_SEND_MESSAGE = "codex_send_message"
+    CODEX_PREVIOUS_RECENT_CHAT = "codex_previous_recent_chat"
+    CODEX_NEXT_RECENT_CHAT = "codex_next_recent_chat"
+    CODEX_DECREASE_REASONING = "codex_decrease_reasoning"
+    CODEX_INCREASE_REASONING = "codex_increase_reasoning"
+    CODEX_APPROVE = "codex_approve"
+    CODEX_DECLINE = "codex_decline"
+    CODEX_TOGGLE_SIDEBAR = "codex_toggle_sidebar"
+    CODEX_SEARCH_CHATS = "codex_search_chats"
+    CODEX_CONTINUE_IN_NEW_CHAT = "codex_continue_in_new_chat"
+    CODEX_NEW_CHAT = "codex_new_chat"
+    CODEX_TOGGLE_FAST_MODE = "codex_toggle_fast_mode"
+    CODEX_TOGGLE_PLAN_MODE = "codex_toggle_plan_mode"
     OPEN_CLAUDE = "open_claude"
     OPEN_CMUX = "open_cmux"
     OPEN_WECHAT = "open_wechat"
@@ -137,6 +150,30 @@ APPLICATION_ACTIONS = frozenset(
 )
 
 
+# Stable, user-visible shortcut contract for the optional Codex Micro preset.
+# The Codex desktop app owns these commands; users bind the chords once in
+# Settings -> Keyboard shortcuts.  Remote Vibe Coding only activates Codex
+# and emits the documented chord, never reading or changing Codex private
+# configuration.
+CODEX_COMMAND_SHORTCUTS = {
+    ActionKind.CODEX_PREVIOUS_RECENT_CHAT: ("lctrl", "lalt", "lshift", "f1"),
+    ActionKind.CODEX_NEXT_RECENT_CHAT: ("lctrl", "lalt", "lshift", "f2"),
+    ActionKind.CODEX_DECREASE_REASONING: ("lctrl", "lalt", "lshift", "f3"),
+    ActionKind.CODEX_INCREASE_REASONING: ("lctrl", "lalt", "lshift", "f4"),
+    ActionKind.CODEX_APPROVE: ("lctrl", "lalt", "lshift", "f5"),
+    ActionKind.CODEX_DECLINE: ("lctrl", "lalt", "lshift", "f6"),
+    ActionKind.CODEX_TOGGLE_SIDEBAR: ("lctrl", "lalt", "lshift", "f7"),
+    ActionKind.CODEX_SEARCH_CHATS: ("lctrl", "lalt", "lshift", "f8"),
+    ActionKind.CODEX_CONTINUE_IN_NEW_CHAT: ("lctrl", "lalt", "lshift", "f9"),
+    ActionKind.CODEX_NEW_CHAT: ("lctrl", "lalt", "lshift", "f10"),
+    ActionKind.CODEX_TOGGLE_FAST_MODE: ("lctrl", "lalt", "lshift", "f11"),
+    ActionKind.CODEX_TOGGLE_PLAN_MODE: ("lctrl", "lalt", "lshift", "p"),
+    ActionKind.CODEX_SEND_MESSAGE: ("lctrl", "lalt", "lshift", "enter"),
+}
+
+CODEX_COMMAND_ACTIONS = frozenset(CODEX_COMMAND_SHORTCUTS)
+
+
 def semantic_action_for_keys(keys: Tuple[str, ...]) -> Optional["ButtonAction"]:
     """Return the semantic action represented by one legacy key tuple."""
 
@@ -153,7 +190,7 @@ def action_allows_repeat(action: "ButtonAction") -> bool:
     can repeat when the physical button itself is a repeatable control.
     """
 
-    return action.kind not in APPLICATION_ACTIONS
+    return action.kind not in APPLICATION_ACTIONS | CODEX_COMMAND_ACTIONS
 
 
 def voice_trigger_mode_for_hotkey(hotkey_text: str) -> Optional[VoiceTriggerMode]:
