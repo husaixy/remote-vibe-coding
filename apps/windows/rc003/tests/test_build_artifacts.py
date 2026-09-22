@@ -777,10 +777,11 @@ class WindowsCiWorkflowTests(unittest.TestCase):
         self.assertIn(
             "Get-FileHash -Algorithm SHA256 -LiteralPath $releaseInstallerPath", step
         )
-        self.assertIn(
-            "Set-Content -Path $releaseManifestPath -Value $lines -Encoding ascii",
-            step,
-        )
+        self.assertIn("[IO.File]::WriteAllText(", step)
+        self.assertIn("$releaseManifestPath", step)
+        self.assertIn('(($lines -join "`n") + "`n")', step)
+        self.assertIn("[Text.Encoding]::ASCII", step)
+        self.assertNotIn("Set-Content -Path $releaseManifestPath", step)
         self.assertNotIn("Set-Content -Path dist/SHA256SUMS.txt", step)
 
     def test_preflight_hard_checks_exactly_three_files_with_the_expected_names(self):

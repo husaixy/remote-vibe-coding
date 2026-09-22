@@ -1,0 +1,429 @@
+name: publish-windows-rc003-prerelease
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Successful windows-rc003-ci run that produced the distribution artifact
+        required: true
+        type: string
+      target_sha:
+        description: Exact 40-character commit SHA shared by the run and annotated tag
+        required: true
+        type: string
+      tag:
+        description: Existing annotated Windows RC003 candidate tag
+        required: true
+        type: string
+
+concurrency:
+  group: windows-rc003-prerelease-${{ inputs.tag }}
+  cancel-in-progress: false
+
+permissions:
+  actions: read
+  contents: write
+
+env:
+  RELEASE_REPOSITORY: husaixy/remote-vibe-coding
+  SOURCE_WORKFLOW_PATH: .github/workflows/windows-rc003-ci.yml
+  SOURCE_ARTIFACT_NAME: RemoteMicRC003-distribution-unsigned
+  RELEASE_NOTES_PATH: apps/windows/rc003/docs/release-notes/v0.2.0-rc.1.md
+  EXPECTED_RELEASE_TAG: v0.2.0-windows-rc003-candidate.1
+  EXPECTED_APP_VERSION: 0.2.0-rc.1
+  RELEASE_TITLE: Remote Vibe Coding v0.2.0 RC1 (Windows RC001/RC003)
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.target_sha }}
+
+      - name: Validate repository, run, tag, and release request
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.run_id }}
+          TARGET_SHA: ${{ inputs.target_sha }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+
+          fail() {
+            echo "release validation failed: $*" >&2
+            exit 1
+          }
+
+          [[ "$GITHUB_REPOSITORY" == "$RELEASE_REPOSITORY" ]] || {
+            fail "workflow must run in $RELEASE_REPOSITORY, got $GITHUB_REPOSITORY"
+          }
+          [[ "$RUN_ID" =~ ^[1-9][0-9]*$ ]] || fail "run_id must be a positive integer"
+          [[ "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]] || {
+            fail "target_sha must be a full lowercase 40-character commit SHA"
+          }
+          [[ "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-windows-rc003-candidate\.([1-9][0-9]*)$ ]] || {
+            fail "tag does not match the Windows RC003 candidate format"
+          }
+          [[ "$RELEASE_TAG" == "$EXPECTED_RELEASE_TAG" ]] || {
+            fail "this release workflow is fixed to $EXPECTED_RELEASE_TAG, got $RELEASE_TAG"
+          }
+
+          checked_out_sha="$(git rev-parse HEAD)"
+          [[ "$checked_out_sha" == "$TARGET_SHA" ]] || {
+            fail "checked-out commit $checked_out_sha does not match target $TARGET_SHA"
+          }
+          [[ -f "$RELEASE_NOTES_PATH" ]] || {
+            fail "fixed release notes file is missing: $RELEASE_NOTES_PATH"
+          }
+
+          repository_json="$(gh api "repos/$RELEASE_REPOSITORY")"
+          default_branch="$(jq -er '.default_branch' <<<"$repository_json")"
+
+          run_json="$(gh api "repos/$RELEASE_REPOSITORY/actions/runs/$RUN_ID")"
+          returned_run_id="$(jq -er '.id | tostring' <<<"$run_json")"
+          run_repository="$(jq -er '.repository.full_name' <<<"$run_json")"
+          run_sha="$(jq -er '.head_sha' <<<"$run_json")"
+          run_status="$(jq -er '.status' <<<"$run_json")"
+          run_conclusion="$(jq -er '.conclusion' <<<"$run_json")"
+          run_event="$(jq -er '.event' <<<"$run_json")"
+          run_branch="$(jq -er '.head_branch' <<<"$run_json")"
+          run_path="$(jq -er '.path' <<<"$run_json")"
+
+          [[ "$returned_run_id" == "$RUN_ID" ]] || {
+            fail "API returned run $returned_run_id instead of requested run $RUN_ID"
+          }
+          [[ "$run_repository" == "$RELEASE_REPOSITORY" ]] || {
+            fail "run belongs to $run_repository instead of $RELEASE_REPOSITORY"
+          }
+          [[ "$run_status" == "completed" && "$run_conclusion" == "success" ]] || {
+            fail "run must be completed successfully; got status=$run_status conclusion=$run_conclusion"
+          }
+          [[ "$run_event" == "push" ]] || fail "run event must be push, got $run_event"
+          [[ "$run_branch" == "$default_branch" ]] || {
+            fail "run branch must be the default branch $default_branch, got $run_branch"
+          }
+          [[ "$run_path" == "$SOURCE_WORKFLOW_PATH" ]] || {
+            fail "run used unexpected workflow $run_path"
+          }
+          [[ "$run_sha" == "$TARGET_SHA" ]] || {
+            fail "run was built from $run_sha instead of $TARGET_SHA"
+          }
+
+          tag_ref_json="$(gh api "repos/$RELEASE_REPOSITORY/git/ref/tags/$RELEASE_TAG")"
+          tag_ref_type="$(jq -er '.object.type' <<<"$tag_ref_json")"
+          tag_object_sha="$(jq -er '.object.sha' <<<"$tag_ref_json")"
+          [[ "$tag_ref_type" == "tag" ]] || {
+            fail "$RELEASE_TAG must be an annotated tag; remote ref type is $tag_ref_type"
+          }
+
+          tag_object_json="$(gh api "repos/$RELEASE_REPOSITORY/git/tags/$tag_object_sha")"
+          tag_target_type="$(jq -er '.object.type' <<<"$tag_object_json")"
+          tag_commit_sha="$(jq -er '.object.sha' <<<"$tag_object_json")"
+          [[ "$tag_target_type" == "commit" ]] || {
+            fail "annotated tag must point directly to a commit, got $tag_target_type"
+          }
+          [[ "$tag_commit_sha" == "$TARGET_SHA" ]] || {
+            fail "tag resolves to $tag_commit_sha instead of $TARGET_SHA"
+          }
+
+          release_error="$RUNNER_TEMP/windows-rc003-release-lookup.err"
+          if gh api "repos/$RELEASE_REPOSITORY/releases/tags/$RELEASE_TAG" \
+            >/dev/null 2>"$release_error"; then
+            fail "a GitHub Release already exists for $RELEASE_TAG"
+          fi
+          grep -Fq '(HTTP 404)' "$release_error" || {
+            cat "$release_error" >&2
+            fail "could not prove that no release exists for $RELEASE_TAG"
+          }
+
+      - name: Download and verify the unique CI distribution
+        id: assets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.run_id }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+
+          fail() {
+            echo "artifact validation failed: $*" >&2
+            exit 1
+          }
+
+          artifacts_json="$(
+            gh api --paginate \
+              "repos/$RELEASE_REPOSITORY/actions/runs/$RUN_ID/artifacts?per_page=100" |
+              jq -s '[.[].artifacts[]]'
+          )"
+          matching_artifacts="$(
+            jq --arg name "$SOURCE_ARTIFACT_NAME" \
+              '[.[] | select(.name == $name)]' <<<"$artifacts_json"
+          )"
+          matching_count="$(jq -er 'length' <<<"$matching_artifacts")"
+          [[ "$matching_count" -eq 1 ]] || {
+            fail "run must contain exactly one $SOURCE_ARTIFACT_NAME artifact; found $matching_count"
+          }
+
+          artifact_expired="$(jq -r '.[0].expired' <<<"$matching_artifacts")"
+          artifact_run_id="$(jq -er '.[0].workflow_run.id | tostring' <<<"$matching_artifacts")"
+          [[ "$artifact_expired" == "false" ]] || fail "source artifact has expired"
+          [[ "$artifact_run_id" == "$RUN_ID" ]] || {
+            fail "artifact reports workflow run $artifact_run_id instead of $RUN_ID"
+          }
+
+          asset_dir="$(mktemp -d "$RUNNER_TEMP/windows-rc003-release-assets.XXXXXX")"
+          gh run download "$RUN_ID" \
+            --repo "$RELEASE_REPOSITORY" \
+            --name "$SOURCE_ARTIFACT_NAME" \
+            --dir "$asset_dir"
+
+          mapfile -t app_versions < <(
+            sed -n 's/^#define AppVersion "\([^"]*\)"/\1/p' \
+              apps/windows/rc003/installer/RemoteMicRC003Setup.iss
+          )
+          [[ "${#app_versions[@]}" -eq 1 ]] || {
+            fail "installer source must declare exactly one AppVersion"
+          }
+          app_version="${app_versions[0]}"
+          [[ "$app_version" == "$EXPECTED_APP_VERSION" ]] || {
+            fail "installer AppVersion is $app_version instead of $EXPECTED_APP_VERSION"
+          }
+
+          installer_name="RemoteMicRC003Setup-$app_version-unsigned.exe"
+          zip_name="RemoteMicRC003-$app_version-portable-unsigned.zip"
+          manifest_name="SHA256SUMS.txt"
+          expected_names=("$installer_name" "$zip_name" "$manifest_name")
+          mapfile -t expected_sorted < <(printf '%s\n' "${expected_names[@]}" | LC_ALL=C sort)
+
+          mapfile -d '' entries < <(
+            find "$asset_dir" -mindepth 1 -maxdepth 1 -print0
+          )
+          [[ "${#entries[@]}" -eq 3 ]] || {
+            fail "artifact must extract to exactly three root entries; found ${#entries[@]}"
+          }
+          for entry in "${entries[@]}"; do
+            [[ -f "$entry" && ! -L "$entry" ]] || {
+              fail "artifact contains a non-regular root entry: $(basename "$entry")"
+            }
+          done
+
+          mapfile -t actual_names < <(
+            find "$asset_dir" -mindepth 1 -maxdepth 1 -type f -printf '%f\n' | LC_ALL=C sort
+          )
+          diff -u \
+            <(printf '%s\n' "${expected_sorted[@]}") \
+            <(printf '%s\n' "${actual_names[@]}") || {
+              fail "artifact file set does not match the three expected names"
+            }
+
+          manifest_path="$asset_dir/$manifest_name"
+          mapfile -t manifest_lines < "$manifest_path"
+          [[ "${#manifest_lines[@]}" -eq 2 ]] || {
+            fail "SHA256SUMS.txt must contain exactly two lines"
+          }
+
+          declare -A seen_names=()
+          manifest_names=()
+          for line in "${manifest_lines[@]}"; do
+            # The manifest is generated by PowerShell on the Windows runner,
+            # so its checked-in artifact uses CRLF. mapfile removes LF only.
+            line="${line%$'\r'}"
+            [[ "$line" =~ ^([0-9a-f]{64})\ \ (.+)$ ]] || {
+              fail "malformed SHA256SUMS.txt line: $line"
+            }
+            expected_hash="${BASH_REMATCH[1]}"
+            file_name="${BASH_REMATCH[2]}"
+            case "$file_name" in
+              "$installer_name"|"$zip_name") ;;
+              *) fail "manifest references unexpected file: $file_name" ;;
+            esac
+            [[ -z "${seen_names[$file_name]+present}" ]] || {
+              fail "manifest contains duplicate file: $file_name"
+            }
+            seen_names["$file_name"]=1
+            manifest_names+=("$file_name")
+
+            actual_hash="$(sha256sum -- "$asset_dir/$file_name")"
+            actual_hash="${actual_hash%% *}"
+            [[ "$actual_hash" == "$expected_hash" ]] || {
+              fail "SHA-256 mismatch for $file_name"
+            }
+          done
+          [[ -n "${seen_names[$installer_name]+present}" && -n "${seen_names[$zip_name]+present}" ]] || {
+            fail "manifest must cover the installer and portable ZIP exactly once"
+          }
+
+          mapfile -t manifest_names_sorted < <(
+            printf '%s\n' "${manifest_names[@]}" | LC_ALL=C sort
+          )
+          diff -u \
+            <(printf '%s\n' "${manifest_names_sorted[@]}") \
+            <(printf '%s\n' "${manifest_names[@]}") || {
+              fail "manifest entries must be sorted by filename"
+            }
+
+          grep -Fq "\`$installer_name\`" "$RELEASE_NOTES_PATH" || {
+            fail "release notes do not name the expected installer asset"
+          }
+          grep -Fq "\`$zip_name\`" "$RELEASE_NOTES_PATH" || {
+            fail "release notes do not name the expected portable asset"
+          }
+
+          echo "asset_dir=$asset_dir" >> "$GITHUB_OUTPUT"
+          echo "installer_name=$installer_name" >> "$GITHUB_OUTPUT"
+          echo "zip_name=$zip_name" >> "$GITHUB_OUTPUT"
+          echo "manifest_name=$manifest_name" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub prerelease with explicit assets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.run_id }}
+          TARGET_SHA: ${{ inputs.target_sha }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          ASSET_DIR: ${{ steps.assets.outputs.asset_dir }}
+          INSTALLER_NAME: ${{ steps.assets.outputs.installer_name }}
+          ZIP_NAME: ${{ steps.assets.outputs.zip_name }}
+          MANIFEST_NAME: ${{ steps.assets.outputs.manifest_name }}
+        run: |
+          set -euo pipefail
+
+          tag_commit_sha="$(
+            gh api "repos/$RELEASE_REPOSITORY/commits/$RELEASE_TAG" --jq '.sha'
+          )"
+          [[ "$tag_commit_sha" == "$TARGET_SHA" ]] || {
+            echo "tag moved to $tag_commit_sha after validation; refusing to publish" >&2
+            exit 1
+          }
+
+          release_error="$RUNNER_TEMP/windows-rc003-release-recheck.err"
+          if gh api "repos/$RELEASE_REPOSITORY/releases/tags/$RELEASE_TAG" \
+            >/dev/null 2>"$release_error"; then
+            echo "a GitHub Release now exists for $RELEASE_TAG" >&2
+            exit 1
+          fi
+          grep -Fq '(HTTP 404)' "$release_error" || {
+            cat "$release_error" >&2
+            echo "could not recheck release absence" >&2
+            exit 1
+          }
+
+          resolved_notes="$RUNNER_TEMP/windows-rc003-release-notes.md"
+          cp -- "$RELEASE_NOTES_PATH" "$resolved_notes"
+          cat >> "$resolved_notes" <<EOF
+
+          ## 构建证据
+
+          - 发布提交：\`$TARGET_SHA\`
+          - Windows CI：[运行 $RUN_ID]($GITHUB_SERVER_URL/$RELEASE_REPOSITORY/actions/runs/$RUN_ID)
+          - 该运行通过公共边界扫描、全量测试、PyInstaller 冒烟检查、Inno Setup 编译和发布资产哈希预检。
+          EOF
+
+          gh release create "$RELEASE_TAG" \
+            "$ASSET_DIR/$INSTALLER_NAME" \
+            "$ASSET_DIR/$ZIP_NAME" \
+            "$ASSET_DIR/$MANIFEST_NAME" \
+            --repo "$RELEASE_REPOSITORY" \
+            --verify-tag \
+            --title "$RELEASE_TITLE" \
+            --notes-file "$resolved_notes" \
+            --prerelease \
+            --latest=false
+
+      - name: Verify published prerelease and uploaded bytes
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_SHA: ${{ inputs.target_sha }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          ASSET_DIR: ${{ steps.assets.outputs.asset_dir }}
+          INSTALLER_NAME: ${{ steps.assets.outputs.installer_name }}
+          ZIP_NAME: ${{ steps.assets.outputs.zip_name }}
+          MANIFEST_NAME: ${{ steps.assets.outputs.manifest_name }}
+        run: |
+          set -euo pipefail
+
+          fail() {
+            echo "published release verification failed: $*" >&2
+            exit 1
+          }
+
+          release_json="$(
+            gh release view "$RELEASE_TAG" \
+              --repo "$RELEASE_REPOSITORY" \
+              --json tagName,isDraft,isPrerelease,assets,url
+          )"
+          [[ "$(jq -er '.tagName' <<<"$release_json")" == "$RELEASE_TAG" ]] || {
+            fail "release tag does not match"
+          }
+          [[ "$(jq -r '.isDraft' <<<"$release_json")" == "false" ]] || {
+            fail "release is still a draft"
+          }
+          [[ "$(jq -er '.isPrerelease' <<<"$release_json")" == "true" ]] || {
+            fail "release is not marked as a prerelease"
+          }
+
+          expected_names=("$INSTALLER_NAME" "$ZIP_NAME" "$MANIFEST_NAME")
+          mapfile -t expected_sorted < <(printf '%s\n' "${expected_names[@]}" | LC_ALL=C sort)
+          mapfile -t published_names < <(
+            jq -r '.assets[].name' <<<"$release_json" | LC_ALL=C sort
+          )
+          [[ "${#published_names[@]}" -eq 3 ]] || {
+            fail "published release must contain exactly three assets"
+          }
+          diff -u \
+            <(printf '%s\n' "${expected_sorted[@]}") \
+            <(printf '%s\n' "${published_names[@]}") || {
+              fail "published asset names do not match the verified source set"
+            }
+          jq -e 'all(.assets[]; .state == "uploaded" and .size > 0)' \
+            <<<"$release_json" >/dev/null || fail "an uploaded asset is empty or incomplete"
+
+          tag_commit_sha="$(
+            gh api "repos/$RELEASE_REPOSITORY/commits/$RELEASE_TAG" --jq '.sha'
+          )"
+          [[ "$tag_commit_sha" == "$TARGET_SHA" ]] || {
+            fail "tag resolves to $tag_commit_sha after publication instead of $TARGET_SHA"
+          }
+
+          verify_dir="$(mktemp -d "$RUNNER_TEMP/windows-rc003-release-verify.XXXXXX")"
+          gh release download "$RELEASE_TAG" \
+            --repo "$RELEASE_REPOSITORY" \
+            --dir "$verify_dir" \
+            --pattern "$INSTALLER_NAME" \
+            --pattern "$ZIP_NAME" \
+            --pattern "$MANIFEST_NAME"
+
+          mapfile -t downloaded_names < <(
+            find "$verify_dir" -mindepth 1 -maxdepth 1 -type f -printf '%f\n' | LC_ALL=C sort
+          )
+          diff -u \
+            <(printf '%s\n' "${expected_sorted[@]}") \
+            <(printf '%s\n' "${downloaded_names[@]}") || {
+              fail "downloaded release asset set is incomplete"
+            }
+
+          for name in "${expected_names[@]}"; do
+            cmp -- "$ASSET_DIR/$name" "$verify_dir/$name" || {
+              fail "published bytes differ from the verified CI artifact for $name"
+            }
+          done
+          normalized_manifest="$RUNNER_TEMP/windows-rc003-release-SHA256SUMS.txt"
+          sed 's/\r$//' "$verify_dir/$MANIFEST_NAME" > "$normalized_manifest"
+          (
+            cd "$verify_dir"
+            sha256sum --check --strict "$normalized_manifest"
+          )
+
+          release_url="$(jq -er '.url' <<<"$release_json")"
+          {
+            echo "### Windows RC003 prerelease published"
+            echo
+            echo "- Release: [$RELEASE_TAG]($release_url)"
+            echo "- Commit: \`$TARGET_SHA\`"
+            echo "- Assets: installer, portable ZIP, and SHA256SUMS.txt verified byte-for-byte"
+          } >> "$GITHUB_STEP_SUMMARY"

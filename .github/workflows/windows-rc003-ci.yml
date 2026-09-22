@@ -331,7 +331,15 @@ jobs:
           $lines = $hashed |
             Sort-Object { Split-Path $_.Path -Leaf } |
             ForEach-Object { "{0}  {1}" -f $_.Hash.ToLowerInvariant(), (Split-Path $_.Path -Leaf) }
-          Set-Content -Path $releaseManifestPath -Value $lines -Encoding ascii
+          # Emit the cross-platform checksum format with explicit LF line
+          # endings. GNU sha256sum treats a trailing CR as part of the file
+          # name, so PowerShell's native Windows CRLF writer is unsuitable
+          # for an artifact that users verify on Windows, macOS, and Linux.
+          [IO.File]::WriteAllText(
+            $releaseManifestPath,
+            (($lines -join "`n") + "`n"),
+            [Text.Encoding]::ASCII
+          )
 
           # Hard preflight, BEFORE upload: exactly three files, exactly the
           # expected deterministic filenames, exactly two well-formed
