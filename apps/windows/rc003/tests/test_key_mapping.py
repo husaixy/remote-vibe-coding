@@ -94,6 +94,16 @@ class ButtonActionSerializationTests(unittest.TestCase):
             key_mapping.ActionKind.FOCUS_CODEX_MAIN_CHAT,
         )
 
+    def test_send_message_is_a_codex_action_without_a_custom_shortcut(self):
+        self.assertIn(
+            key_mapping.ActionKind.CODEX_SEND_MESSAGE,
+            key_mapping.CODEX_COMMAND_ACTIONS,
+        )
+        self.assertNotIn(
+            key_mapping.ActionKind.CODEX_SEND_MESSAGE,
+            key_mapping.CODEX_COMMAND_SHORTCUTS,
+        )
+
 
 class GestureBindingLookupTests(unittest.TestCase):
     def test_legacy_flat_binding_is_single_click_only(self):

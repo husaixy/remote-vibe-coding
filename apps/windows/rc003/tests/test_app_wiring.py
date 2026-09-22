@@ -700,6 +700,49 @@ class OrdinaryButtonGestureWiringTests(_AppWiringTestCase):
             ["focus", ("lctrl", "lalt", "lshift", "f2")],
         )
 
+    def test_codex_send_focuses_then_submits_with_native_enter(self):
+        calls = []
+        original_focus = app_module.focus_codex_main_chat
+        original_return = win32_input.send_return
+        app_module.focus_codex_main_chat = lambda: calls.append("focus") or True
+        win32_input.send_return = lambda: calls.append("enter")
+        try:
+            delivered = app_module.send_codex_command(
+                key_mapping.ActionKind.CODEX_SEND_MESSAGE,
+                _sleep=lambda seconds: calls.append(("sleep", seconds)),
+            )
+        finally:
+            app_module.focus_codex_main_chat = original_focus
+            win32_input.send_return = original_return
+
+        self.assertTrue(delivered)
+        self.assertEqual(
+            calls,
+            [
+                "focus",
+                ("sleep", app_module.CODEX_COMPOSER_SETTLE_SECONDS),
+                "enter",
+            ],
+        )
+
+    def test_codex_send_withholds_enter_when_focus_fails(self):
+        calls = []
+        original_focus = app_module.focus_codex_main_chat
+        original_return = win32_input.send_return
+        app_module.focus_codex_main_chat = lambda: False
+        win32_input.send_return = lambda: calls.append("enter")
+        try:
+            delivered = app_module.send_codex_command(
+                key_mapping.ActionKind.CODEX_SEND_MESSAGE,
+                _sleep=lambda _seconds: calls.append("sleep"),
+            )
+        finally:
+            app_module.focus_codex_main_chat = original_focus
+            win32_input.send_return = original_return
+
+        self.assertFalse(delivered)
+        self.assertEqual(calls, [])
+
     def test_one_physical_press_emits_one_mapping_action(self):
         calls = []
         original = win32_input.send_key_combo_tap

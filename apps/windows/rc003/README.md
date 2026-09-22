@@ -330,9 +330,9 @@ VB-CABLE 虚拟音频驱动"卡片会显示 CABLE Input/CABLE Output 两个端�
 | TV | 在新会话中继续（Fork chat） | 新建会话 |
 | 电源 | 切换 Fast 模式 | 切换 Plan 模式 |
 
-预设动作会先使用 `Ctrl+Alt+Shift+F12` 唤醒并聚焦 Codex，再发送对应命令快捷键。
-请在 Codex 的 **设置 → 键盘快捷键** 中完成以下绑定；命令名称可能随界面语言显示为
-中文或英文：
+预设动作会先使用 `Ctrl+Alt+Shift+F12` 唤醒并聚焦 Codex。确认键等待输入框稳定后
+直接发送原生 `Enter`；其余 Codex 动作再发送对应命令快捷键。请在 Codex 的
+**设置 → 键盘快捷键** 中完成以下绑定；命令名称可能随界面语言显示为中文或英文：
 
 | Codex 命令 | 绑定快捷键 |
 | --- | --- |
@@ -349,7 +349,9 @@ VB-CABLE 虚拟音频驱动"卡片会显示 CABLE Input/CABLE Output 两个端�
 | New chat | `Ctrl+Alt+Shift+F10` |
 | Toggle Fast mode | `Ctrl+Alt+Shift+F11` |
 | Toggle Plan mode | `Ctrl+Alt+Shift+P` |
-| Send message | `Ctrl+Alt+Shift+Enter` |
+
+“发送 Codex 消息”无需额外绑定 `Send message`。只要 `Focus main chat` 已按上表绑定，
+确认键就会在聚焦后使用原生 `Enter` 提交当前输入框内容。
 
 上下键使用 Codex 自己的“最近查看会话”命令，不发送普通方向键，因此光标位于输入框时
 也不会误移动。当前第一版采用前后循环，不在遥控器端维护固定的 1–6 槽位；这样不会因

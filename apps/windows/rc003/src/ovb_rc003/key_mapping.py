@@ -168,10 +168,11 @@ CODEX_COMMAND_SHORTCUTS = {
     ActionKind.CODEX_NEW_CHAT: ("lctrl", "lalt", "lshift", "f10"),
     ActionKind.CODEX_TOGGLE_FAST_MODE: ("lctrl", "lalt", "lshift", "f11"),
     ActionKind.CODEX_TOGGLE_PLAN_MODE: ("lctrl", "lalt", "lshift", "p"),
-    ActionKind.CODEX_SEND_MESSAGE: ("lctrl", "lalt", "lshift", "enter"),
 }
 
-CODEX_COMMAND_ACTIONS = frozenset(CODEX_COMMAND_SHORTCUTS)
+CODEX_COMMAND_ACTIONS = frozenset(CODEX_COMMAND_SHORTCUTS) | {
+    ActionKind.CODEX_SEND_MESSAGE
+}
 
 
 def semantic_action_for_keys(keys: Tuple[str, ...]) -> Optional["ButtonAction"]:

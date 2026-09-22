@@ -101,7 +101,7 @@ PCM。该结论不依赖相同外观或 VID/PID 推断；更多固件版本和�
 
 ### 使用 Codex 前：手动绑定聚焦快捷键
 
-> **必须先配置 Codex 快捷键。** 本程序不会自动修改 Codex 设置。没有完成绑定时，遥控器可能能够唤醒 Codex，但切换会话、推理强度、发送和批准等动作不会生效。
+> **必须先配置 Codex 聚焦快捷键。** 本程序不会自动修改 Codex 设置。没有完成 `Focus main chat` 绑定时，遥控器不能可靠地把操作送到 Codex 输入框；切换会话、推理强度、批准等动作还需继续绑定下表中的各自命令。
 
 1. 打开 Codex 的 **设置 → 键盘快捷键（Keyboard Shortcuts）**。
 2. 搜索 **聚焦主聊天 / Focus main chat**，将其绑定为 **`Ctrl+Alt+Shift+F12`** 并保存。这是本项目使用的组合键，不是 Codex 的默认快捷键。
@@ -122,13 +122,14 @@ PCM。该结论不依赖相同外观或 VID/PID 推断；更多固件版本和�
 | New chat | `Ctrl+Alt+Shift+F10` |
 | Toggle Fast mode | `Ctrl+Alt+Shift+F11` |
 | Toggle Plan mode | `Ctrl+Alt+Shift+P` |
-| Send message | `Ctrl+Alt+Shift+Enter` |
 
-5. 逐项用普通键盘测试这些组合键；存在冲突时，先解除其他命令或软件占用，再保持 Codex 与 Remote Vibe Coding 两端一致。
+确认键的“发送 Codex 消息”不需要额外绑定 `Send message`：程序先用 F12 组合键聚焦输入框，等待界面稳定后直接发送原生 `Enter`。
+
+5. 逐项用普通键盘测试表中的组合键；存在冲突时，先解除其他命令或软件占用，再保持 Codex 与 Remote Vibe Coding 两端一致。
 6. 在 Remote Vibe Coding 的“按键映射”中应用 Codex 预设并保存。升级会保留旧映射，不会强制覆盖已有配置。
 7. 关闭设置窗口后测试：Codex 在前台时短按主页键收起；切到其他应用后长按主页键约 0.55 秒唤醒并聚焦，再测试上下、音量、确认等按键。
 
-`Focus main chat` 是其余 Codex 动作的前置绑定：程序会先唤醒并聚焦 Codex，再发送具体命令。不同 Codex 版本或界面语言可能显示不同名称；如果某个命令在本机不存在，该动作暂时不可用，其他已绑定动作不受影响。
+`Focus main chat` 是其余 Codex 动作的前置绑定：程序会先唤醒并聚焦 Codex；确认键随后发送原生 `Enter`，其他动作再发送表中的具体命令。不同 Codex 版本或界面语言可能显示不同名称；如果某个命令在本机不存在，该动作暂时不可用，其他已绑定动作不受影响。
 
 如果只能唤醒窗口、无法输入文字，先检查第 2、3 步；如果普通按键也全部无效，按客户端文档检查按键通道。
 完整说明见 [主页键控制 Codex](apps/windows/rc003/README.md#主页键控制-codex)。

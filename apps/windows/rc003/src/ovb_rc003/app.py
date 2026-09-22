@@ -97,6 +97,7 @@ class CleanupIncompleteError(RuntimeError):
 
 HID_RECOVERY_ATTEMPTS = 33
 HID_RECOVERY_POLL_SECONDS = 0.25
+CODEX_COMPOSER_SETTLE_SECONDS = 0.15
 
 
 def open_configured_application(action: key_mapping.ButtonAction) -> bool:
@@ -113,14 +114,34 @@ def focus_codex_main_chat() -> bool:
     return codex_window.focus_main_chat()
 
 
-def send_codex_command(action_kind: key_mapping.ActionKind) -> bool:
-    """Activate Codex through the public focus shortcut, then send one
-    user-bound command shortcut from the Codex Micro preset.
+def send_codex_command(
+    action_kind: key_mapping.ActionKind,
+    *,
+    _sleep: Callable[[float], None] = time.sleep,
+) -> bool:
+    """Focus the Codex composer, then execute one Codex Micro action.
+
+    Most actions use a user-bound shortcut. Sending is different: once the
+    public Focus main chat shortcut has put the caret in the composer, the
+    native Enter key is the stable submit action used by the current UI.
     """
 
+    sends_message = action_kind == key_mapping.ActionKind.CODEX_SEND_MESSAGE
     shortcut = key_mapping.CODEX_COMMAND_SHORTCUTS.get(action_kind)
-    if shortcut is None or not focus_codex_main_chat():
+    if not sends_message and shortcut is None:
         return False
+    if not focus_codex_main_chat():
+        return False
+    if sends_message:
+        # Focus main chat is itself delivered as a shortcut. Give the UI one
+        # short compositor turn before Enter so it cannot land on the window
+        # that was foreground immediately before Codex.
+        _sleep(CODEX_COMPOSER_SETTLE_SECONDS)
+        win32_input.send_return()
+        logging.getLogger(__name__).info(
+            "Codex composer message submitted with native Enter"
+        )
+        return True
     win32_input.send_key_combo_tap(shortcut)
     return True
 
