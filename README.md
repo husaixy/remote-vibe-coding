@@ -76,16 +76,14 @@ PCM。该结论不依赖相同外观或 VID/PID 推断；更多固件版本和�
 
 ## 下载与安装
 
-当前 `husaixy/remote-vibe-coding` 尚未发布包含本轮二次开发功能的独立 Release；完整功能已经进入本仓库源码。现阶段请按“从源码本地运行”一节使用，或在 Windows 上运行 `apps/windows/rc003/build/build-candidate.ps1` 自行构建。
-
-上游历史正式版 [v0.1.0-windows](https://github.com/miaomiaozii/windows-remote-mic-app/releases/tag/v0.1.0-windows) 不包含本仓库新增的极简 UI、品牌图标、键盘方向键修复和 Codex Micro 预设。Remote Vibe Coding 独立安装包发布后，将出现在[当前仓库 Releases](https://github.com/husaixy/remote-vibe-coding/releases)，预计提供以下资产：
+当前二次开发版以预发布候选版 [v0.2.0-windows-rc003-candidate.1](https://github.com/husaixy/remote-vibe-coding/releases/tag/v0.2.0-windows-rc003-candidate.1) 提供，也可在[当前仓库 Releases](https://github.com/husaixy/remote-vibe-coding/releases)查看后续版本。上游历史正式版 [v0.1.0-windows](https://github.com/miaomiaozii/windows-remote-mic-app/releases/tag/v0.1.0-windows) 不包含本仓库新增的极简 UI、品牌图标、键盘方向键修复和 Codex Micro 预设。
 
 从 Release 页面 Assets 下载，二选一：
 
 | 资产 | 适用场景 |
 | --- | --- |
-| `RemoteMicRC003Setup-0.1.0-candidate-unsigned.exe` | 推荐，安装到开始菜单/桌面并创建快捷方式 |
-| `RemoteMicRC003-0.1.0-candidate-portable-unsigned.zip` | 免安装，解压到任意目录直接运行 |
+| `RemoteMicRC003Setup-0.2.0-rc.1-unsigned.exe` | 推荐，安装到开始菜单/桌面并创建快捷方式 |
+| `RemoteMicRC003-0.2.0-rc.1-portable-unsigned.zip` | 免安装，解压到任意目录直接运行 |
 
 两个都未签名，Windows SmartScreen 会提示，点“更多信息 → 仍要运行”即可。
 建议同时下载 `SHA256SUMS.txt` 校验文件哈希。

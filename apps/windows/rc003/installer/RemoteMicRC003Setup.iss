@@ -1,7 +1,8 @@
-; Inno Setup source for Remote Vibe Coding (Windows source/build
-; candidate). Unsigned. Not yet real-device verified - see this
-; subtree's top-level README.md "Known gaps" section before treating
-; this as a supported release artifact.
+; Inno Setup source for the Remote Vibe Coding Windows RC001/RC003
+; prerelease candidate. This build is unsigned. The underlying controller,
+; button, and voice paths have passed earlier real-device acceptance; the
+; Codex Micro actions still depend on the user's manual Codex shortcut
+; bindings documented in this subtree's README.md.
 ;
 ; Hard boundaries enforced by this script:
 ;   - PrivilegesRequired=lowest (no admin elevation requested, ever).
@@ -24,7 +25,7 @@
 
 #define AppName "Remote Vibe Coding"
 #define AppPublisher "Remote Vibe Coding contributors"
-#define AppVersion "0.1.0-candidate"
+#define AppVersion "0.2.0-rc.1"
 #define AppExeName "RemoteMicRC003.exe"
 #define AppFolder "RC003"
 #define DistDir "..\dist\RemoteMicRC003"

@@ -1149,14 +1149,14 @@ class PrereleaseDownloadInstructionsContractTests(unittest.TestCase):
 
     def test_links_to_the_generic_releases_page(self):
         self.assertIn(
-            "https://github.com/miaomiaozii/windows-remote-mic-app/releases", self.text
+            "https://github.com/husaixy/remote-vibe-coding/releases", self.text
         )
         # The bare list page is the stable entry point; any direct
         # /releases/tag/... link must point at a tag this repo actually
         # published (so a future tag bump that forgets to publish 404s the
         # doc instead of silently breaking).
         self.assertIn(
-            "/releases/tag/v0.1.0-windows-rc003-candidate.1", self.text
+            "/releases/tag/v0.2.0-windows-rc003-candidate.1", self.text
         )
 
     def test_does_not_make_a_time_dependent_claim_about_prerelease_existence(self):
@@ -1186,7 +1186,7 @@ class PrereleaseDownloadInstructionsContractTests(unittest.TestCase):
         )
 
     def test_documents_the_release_tag_vs_internal_build_version_distinction(self):
-        self.assertIn("v0.3.0-windows-rc003-candidate.1", self.text)
+        self.assertIn("v0.2.0-windows-rc003-candidate.1", self.text)
         # The doc's claimed internal build version must match the .iss
         # file's real AppVersion - not just a hardcoded literal that could
         # silently drift the moment a future task bumps AppVersion without
@@ -1228,8 +1228,8 @@ class RealWindowsCiEvidenceContractTests(unittest.TestCase):
         self.assertIn("已通过真实硬件验收", self.readme_text)
 
     def test_repository_links_to_its_own_actions_and_releases(self):
-        self.assertIn("https://github.com/miaomiaozii/windows-remote-mic-app/releases", self.readme_text)
-        self.assertIn("https://github.com/miaomiaozii/windows-remote-mic-app/actions", self.readme_text)
+        self.assertIn("https://github.com/husaixy/remote-vibe-coding/releases", self.readme_text)
+        self.assertIn("https://github.com/husaixy/remote-vibe-coding/actions", self.readme_text)
 
 
 class PortableAndInstallerFlowContractTests(unittest.TestCase):
@@ -1283,7 +1283,7 @@ class PortableAndInstallerFlowContractTests(unittest.TestCase):
 
     def test_portable_flow_explicitly_denies_start_menu_entries(self):
         portable_section_start = self.text.index("方式二：便携版")
-        portable_section_end = self.text.index("### 配对 RC003")
+        portable_section_end = self.text.index("### 配对 RC001 / RC003")
         portable_section = self.text[portable_section_start:portable_section_end]
         self.assertIn("没有", portable_section)
         self.assertIn("Start Menu", portable_section)

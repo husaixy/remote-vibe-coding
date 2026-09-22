@@ -1,9 +1,9 @@
 Remote Vibe Coding（Windows 源码/构建候选）
 ====================================================
 
-状态：本安装包是一个尚未经过 Windows 真机验收的源码/构建候选，不代表
-Xiaomi 蓝牙遥控器 2 Pro / RC003 已在 Windows 上完整实现或验收通过。见文末
-"真机验证事项（待核验）"。
+状态：本安装包是未签名的 Windows RC001/RC003 预发布候选版。基础配对、
+按键和语音链路此前已经通过真机验收；新增 Codex Micro 动作仍取决于用户是否
+按 README 手动绑定了对应的 Codex 快捷键。见文末“真机验证事项”。
 
 系统要求
 --------
@@ -14,7 +14,7 @@ Xiaomi 蓝牙遥控器 2 Pro / RC003 已在 Windows 上完整实现或验收通�
   在点击"仍要运行"之前，建议先核对安装包（或便携版 ZIP）的 SHA-256 校验
   值是否与同一次构建产出的 SHA256SUMS.txt 一致。以 PowerShell 为例（把
   <文件名> 换成你实际下载的文件名，例如
-  RemoteMicRC003Setup-0.1.0-candidate-unsigned.exe）：
+  RemoteMicRC003Setup-0.2.0-rc.1-unsigned.exe）：
 
       Get-FileHash -Algorithm SHA256 .\<文件名>
 
@@ -188,9 +188,10 @@ logs\app.log 会一直保留在 %LOCALAPPDATA%\RemoteMic\RC003 下，因为
   COPYRIGHT 与 THIRD_PARTY_NOTICES.md（安装目录下也附带了这两份文件的
   副本）。
 
-真机验证事项（待核验）
-----------------------
-以下事项尚未在真实 Windows 设备上验证：设备配对/自动发现/重连的完整
-流程、逐键实际行为（尤其"返回"、"电源""电视"三键，取决于 Windows Raw Input
-是否为它们产生事件）、ATVV 语音延迟与音量、豆包输入法语音快捷键实际效果。
-请以你自己在真机上的实际体验为准；Win+H 仅是独立的 Windows 系统听写诊断。
+真机验证与环境差异
+------------------
+RC001/RC003 的设备配对、逐键行为和 ATVV 语音链路此前已经通过真实 Windows
+设备验收。蓝牙固件、Windows 更新、音频端点和输入法版本仍可能影响实际效果，
+请在安装后依次检查连接、普通按键和语音。Codex Micro 动作无法由安装程序自动
+创建快捷键；必须先按项目 README 在 Codex 桌面版里手动绑定全部对应动作。
+Win+H 只用于独立检查 Windows 系统听写，不代表遥控器语音链路已经配置完成。

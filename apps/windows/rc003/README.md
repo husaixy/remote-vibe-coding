@@ -73,19 +73,22 @@ RC001 和 RC003 如果同时配对，程序仍会按原有安全策略拒绝猜�
 
 ### 获取构建产物
 
-当前 Remote Vibe Coding 二次开发版尚未发布独立 Release。需要完整新功能时，
-请从当前仓库源码运行或自行构建；不要下载上游 `v0.1.0-windows` 后期待它包含
-Codex Micro 预设、极简 UI 或本轮修复。独立版本发布后，首选来源是当前仓库的
+当前 Remote Vibe Coding 二次开发版以预发布候选版
+`v0.2.0-windows-rc003-candidate.1` 提供。不要下载上游 `v0.1.0-windows` 后
+期待它包含 Codex Micro 预设、极简 UI 或本轮修复。首选来源是当前仓库的
 Releases 列表页：
 
   https://github.com/husaixy/remote-vibe-coding/releases
 
-在列表中找到本 RC003 Windows 候选对应的预发行版（预发行版会明确标记为
-prerelease，发布说明会写清楚它基于哪一次真实 Windows CI 运行）。
+直接版本页：
 
-预发行版的仓库级 tag（例如 `v0.3.0-windows-rc003-candidate.1`）只是发布
+  https://github.com/husaixy/remote-vibe-coding/releases/tag/v0.2.0-windows-rc003-candidate.1
+
+该版本明确标记为 prerelease；安装包和便携版均未签名。
+
+预发行版的仓库级 tag（本次为 `v0.2.0-windows-rc003-candidate.1`）只是发布
 编号，和资产文件名里的内部构建版本号是两回事：当前内部构建版本号固定为
-`0.1.0-candidate`（来自安装器脚本
+`0.2.0-rc.1`（来自安装器脚本
 `installer/RemoteMicRC003Setup.iss` 的 `AppVersion`）。不要因为
 文件名里的版本号和 tag 不一致就怀疑下载错了文件，具体对应关系以该
 预发行版自己的发布说明为准。
@@ -551,12 +554,12 @@ Frida Gadget 实现；Frida 的版本、哈希和许可证见仓库根目录
 - 上游历史正式版 `v0.1.0-windows`：<https://github.com/miaomiaozii/windows-remote-mic-app/releases/tag/v0.1.0-windows>
 - 上游历史候选版 `v0.1.0-windows-rc003-candidate.1`：<https://github.com/miaomiaozii/windows-remote-mic-app/releases/tag/v0.1.0-windows-rc003-candidate.1>
 
-上游历史安装包不包含当前仓库的二次开发功能。当前仓库尚未发布独立 Release，
-在首个 Remote Vibe Coding Release 建立前请从源码运行或自行构建。
+上游历史安装包不包含当前仓库的二次开发功能。当前仓库的首个独立预发布版为
+<https://github.com/husaixy/remote-vibe-coding/releases/tag/v0.2.0-windows-rc003-candidate.1>。
 
-正式版资产文件名沿用构建流程的内部版本号 `0.1.0-candidate`（见
+本次资产文件名沿用构建流程的内部版本号 `0.2.0-rc.1`（见
 `installer/RemoteMicRC003Setup.iss` 的 `AppVersion`）；Release tag 为
-`v0.1.0-windows`。
+`v0.2.0-windows-rc003-candidate.1`。
 
 每个版本的安装器、便携版 ZIP 和 `SHA256SUMS.txt` 必须来自同一次 Windows CI
 构建；发布前已在真实 RC003 上完成配对、按键和语音链路验收，并在发布说明中

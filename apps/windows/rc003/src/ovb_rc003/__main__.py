@@ -65,7 +65,7 @@ from . import __version__
 
 def _print_help() -> None:
     print(f"Remote Vibe Coding - RC001/RC003 Windows client {__version__}")
-    print("Not yet real-device verified - see this package's README.md 'Known gaps' section.")
+    print("Base RC001/RC003 input and voice paths are real-device accepted; see README.md for setup limits.")
     print()
     print("Usage:")
     print("  python -m ovb_rc003               open the settings window (default)")

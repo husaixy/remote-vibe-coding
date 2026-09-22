@@ -1,11 +1,20 @@
 # Changelog — Remote Vibe Coding (Windows)
 
 内部构建版本号固定在 `installer/RemoteMicRC003Setup.iss` 的 `AppVersion`
-（当前 `0.1.0-candidate`），仓库级 tag 只作为发布编号，两者对应关系以每条
+（当前 `0.2.0-rc.1`），仓库级 tag 只作为发布编号，两者对应关系以每条
 发布说明为准。正式版 tag 格式：`v<内部版本>-windows`；候选版为
-`v<内部版本>-windows-rc003-candidate.<序号>`。
+`v<基础版本>-windows-rc003-candidate.<序号>`（内部版本可带 `-rc.N`）。
 
 ## [Unreleased]
+
+## [0.2.0-rc.1] — 2026-09-22
+
+标签：`v0.2.0-windows-rc003-candidate.1`
+
+Remote Vibe Coding 首个独立预发布候选版。该版本在既有 RC001/RC003 真机
+配对、按键和语音链路基础上，加入极简设置界面、品牌图标、Codex Micro 预设、
+按键释放延迟修复和 HID 恢复流程。Codex 动作需要先按 README 手动绑定桌面版
+Codex 快捷键；安装器和便携包仍未签名。
 
 ### 文档与设计
 

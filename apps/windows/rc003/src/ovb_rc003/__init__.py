@@ -1,10 +1,10 @@
 """Remote Vibe Coding - RC001/RC003 Windows client.
 
-Not yet real-device verified on Windows. See this package's top-level
-README.md "Known gaps" section for the full list of what remains
-unverified on real hardware.
+The RC001/RC003 pairing, button, and voice paths have passed real-device
+acceptance on Windows. See this package's top-level README.md for the
+remaining environment-specific limits and Codex shortcut setup.
 """
 
 __all__ = ["__version__"]
 
-__version__ = "0.1.0-candidate"
+__version__ = "0.2.0-rc.1"

@@ -43,11 +43,17 @@ _ELEVATION_MARKERS = (
 
 _FORBIDDEN_BINARY_SUFFIXES = (".exe", ".dll", ".pyd", ".zip", ".xz")
 
-# Two disclosed, click-only UAC boundaries are allowed: the third-party
-# VB-CABLE installer and the short-lived, hash-pinned RC001/RC003 HID helper.
-# Every normal settings/bridge module stays elevation-free.
+# Three disclosed, click-only UAC boundaries are allowed: the third-party
+# VB-CABLE installer, the short-lived hash-pinned RC001/RC003 HID helper,
+# and the short-lived disabled-PnP-node repair helper used by an explicit
+# save/restart request. Every normal settings/bridge module stays
+# elevation-free.
 _ELEVATION_MARKER_EXEMPT_FILENAMES = frozenset(
-    {"vb_cable_bundle.py", "frida_hid_tap_elevation.py"}
+    {
+        "vb_cable_bundle.py",
+        "frida_hid_tap_elevation.py",
+        "pnp_recovery_windows.py",
+    }
 )
 
 # vb_cable_bundle.py/windows_diagnostics.py/qt_settings_app.py are the three
@@ -126,6 +132,17 @@ class NoElevationOrAutoDriverTests(unittest.TestCase):
         self.assertIn("ShellExecuteW", text)
         self.assertIn('"runas"', text)
         self.assertIn('"--rc003-hid-injector"', text)
+        self.assertNotIn("RequireAdministrator", text)
+        self.assertNotIn("PrivilegesRequired=admin", text)
+
+    def test_pnp_recovery_elevation_is_scoped_to_explicit_disabled_remote_repair(self):
+        path = _PACKAGE_ROOT / "pnp_recovery_windows.py"
+        text = path.read_text(encoding="utf-8")
+        self.assertIn("ShellExecuteW", text)
+        self.assertIn('"runas"', text)
+        self.assertIn('arguments = ["--repair-disabled-remote"]', text)
+        self.assertNotIn('"--bridge"', text)
+        self.assertNotIn('"--settings"', text)
         self.assertNotIn("RequireAdministrator", text)
         self.assertNotIn("PrivilegesRequired=admin", text)
 

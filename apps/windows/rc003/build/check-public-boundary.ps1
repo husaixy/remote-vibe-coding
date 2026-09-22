@@ -127,6 +127,14 @@ $brandingCheckExemptRelativePaths = @(
     # unelevated; tests/test_privacy_contract.py scopes this exemption to the
     # --rc003-hid-injector mode.
     "src/ovb_rc003/frida_hid_tap_elevation.py",
+    # Explicit "save and restart bridge" recovery path for a matching
+    # RC001/RC003 whose Windows PnP node is disabled. The normal settings
+    # and bridge processes remain unelevated; this module may request UAC
+    # only for its short-lived --repair-disabled-remote helper. The mirrored
+    # Python boundary tests assert that exact mode and reject branding or
+    # autostart markers, so this file-level scanner exemption cannot hide an
+    # unrelated privileged startup path.
+    "src/ovb_rc003/pnp_recovery_windows.py",
     # README.md/ATTRIBUTION.md document this same disclosed "runas"/UAC
     # vendor-launch mechanism in prose - the word itself is documentation,
     # not a directive.
