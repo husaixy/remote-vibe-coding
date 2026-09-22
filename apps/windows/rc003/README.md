@@ -73,10 +73,12 @@ RC001 和 RC003 如果同时配对，程序仍会按原有安全策略拒绝猜�
 
 ### 获取构建产物
 
-首选来源是本仓库的 Releases 列表页——这是列表页本身，不是指向某个具体
-tag 的链接，因此始终是获取最新预发行版的稳定入口，请直接使用这个地址：
+当前 Remote Vibe Coding 二次开发版尚未发布独立 Release。需要完整新功能时，
+请从当前仓库源码运行或自行构建；不要下载上游 `v0.1.0-windows` 后期待它包含
+Codex Micro 预设、极简 UI 或本轮修复。独立版本发布后，首选来源是当前仓库的
+Releases 列表页：
 
-  https://github.com/miaomiaozii/windows-remote-mic-app/releases
+  https://github.com/husaixy/remote-vibe-coding/releases
 
 在列表中找到本 RC003 Windows 候选对应的预发行版（预发行版会明确标记为
 prerelease，发布说明会写清楚它基于哪一次真实 Windows CI 运行）。
@@ -135,7 +137,7 @@ prerelease，发布说明会写清楚它基于哪一次真实 Windows CI 运行�
 停止脚本或卸载程序——启动、设置、停止、卸载都需要在解压出的文件夹里
 用命令或任务管理器手动完成，具体步骤见下一节"便携版 ZIP 用户"。
 
-### 配对 RC003
+### 配对 RC001 / RC003
 
 1. 同时长按遥控器的【主页键】+【菜单键】，直到遥控器进入配对广播状态；
 2. 打开 Windows"设置 → 蓝牙和其他设备"，等待遥控器出现后完成配对；
@@ -511,7 +513,7 @@ $env:PYTHONPATH = Join-Path (Get-Location) 'src'
 ```
 
 Windows GitHub Actions 工作流位于 `.github/workflows/windows-rc003-ci.yml`。运行结果
-可在 <https://github.com/miaomiaozii/windows-remote-mic-app/actions> 查看。CI 没有真实 RC003 硬件，
+可在 <https://github.com/husaixy/remote-vibe-coding/actions> 查看。CI 没有真实 RC003 硬件，
 因此构建和测试通过也不能替代真机配对、按键和语音链路验收。
 
 ## 已知限制
@@ -545,11 +547,12 @@ Frida Gadget 实现；Frida 的版本、哈希和许可证见仓库根目录
 
 ## 发布说明
 
-Windows 版本以正式版发布。首个正式发布：
+- 当前二次开发仓库发布列表：<https://github.com/husaixy/remote-vibe-coding/releases>
+- 上游历史正式版 `v0.1.0-windows`：<https://github.com/miaomiaozii/windows-remote-mic-app/releases/tag/v0.1.0-windows>
+- 上游历史候选版 `v0.1.0-windows-rc003-candidate.1`：<https://github.com/miaomiaozii/windows-remote-mic-app/releases/tag/v0.1.0-windows-rc003-candidate.1>
 
-- 发布列表页：<https://github.com/miaomiaozii/windows-remote-mic-app/releases>
-- 正式版 `v0.1.0-windows`：<https://github.com/miaomiaozii/windows-remote-mic-app/releases/tag/v0.1.0-windows>
-- 候选版 `v0.1.0-windows-rc003-candidate.1`（历史）：<https://github.com/miaomiaozii/windows-remote-mic-app/releases/tag/v0.1.0-windows-rc003-candidate.1>
+上游历史安装包不包含当前仓库的二次开发功能。当前仓库尚未发布独立 Release，
+在首个 Remote Vibe Coding Release 建立前请从源码运行或自行构建。
 
 正式版资产文件名沿用构建流程的内部版本号 `0.1.0-candidate`（见
 `installer/RemoteMicRC003Setup.iss` 的 `AppVersion`）；Release tag 为

@@ -4,6 +4,32 @@
 
 本项目派生自 [`miaomiaozii/windows-remote-mic-app`](https://github.com/miaomiaozii/windows-remote-mic-app)，继续采用 GPL-3.0-only 开源。当前版本保留并扩展其 Windows 蓝牙、按键映射和 ATVV 语音桥接能力；macOS 应用、Swift 工程和 macOS 发布资源不属于本仓库。
 
+## 项目来源
+
+- **直接拉取和持续同步的上游项目**：[`miaomiaozii/windows-remote-mic-app`](https://github.com/miaomiaozii/windows-remote-mic-app)。本仓库保留其 Git 历史、GPL-3.0-only 许可证和来源说明。
+- **更早的原始项目**：[`HD838A/remote-mic-app`](https://github.com/HD838A/remote-mic-app)，最初用于把小米蓝牙遥控器 2 Pro / RC003 作为 macOS 语音输入设备。
+- **当前二次开发仓库**：[`husaixy/remote-vibe-coding`](https://github.com/husaixy/remote-vibe-coding)。目前集中维护 Windows 客户端，不继续维护原项目的 macOS / Swift 工程。
+
+## 我们做了哪些二次开发
+
+在上游 Windows 蓝牙、ATVV 语音和按键桥接基础上，本项目完成了以下扩展：
+
+- 将产品定位和界面统一为 **Remote Vibe Coding（遥控语音编程）**，增加新的应用图标、桌面快捷方式，以及极简扁平化的 PySide6 / Qt Quick 设置界面；
+- 增加 RC001 与 RC003 的设备选择、配对诊断、真实按键检测、权限修复、日志入口和“保存并重启桥接”；
+- 增加单击、双击、长按三种动作，并提供可视化映射、恢复默认值和运行时热加载；
+- 增加 Codex 窗口唤醒、聚焦输入框、收起窗口以及 **Codex Micro 风格预设**；
+- Codex 预设支持切换最近会话、调节推理强度、发送消息、批准/拒绝请求、切换侧边栏、搜索会话、Fork、新建会话以及 Fast / Plan 模式；
+- 修复普通按键双触发、遥控器 F5 泄漏、蓝牙重连后 HID 未恢复、语音按键残留，以及桥接运行时电脑键盘方向键松开延迟等问题；
+- 改进 VB-CABLE 音频路由、语音增益和重采样，并补充 PyInstaller 便携构建、Inno Setup 安装器、测试与完整操作文档。
+
+所有 Codex 联动都使用 Windows 公共 API 和用户在 Codex 中主动设置的键盘快捷键；程序不会读取或修改 Codex 的私有数据库、内部配置或私有协议。
+
+## 实现效果
+
+完成配置后，可以把小米遥控器作为一块便携 Codex 控制面板：长按麦克风键说话、松开结束；用主页键唤醒并聚焦 Codex；用上下键切换最近会话；用音量键改变推理强度；用确认、返回、菜单、TV 和电源键完成发送、批准/拒绝、会话管理以及 Fast / Plan 切换。标准映射仍可用于 Windows 方向、音量、应用切换和媒体控制，用户可以随时修改或恢复。
+
+当前版本已在真实 RC001 / RC003 上验证蓝牙连接、普通按键和 ATVV 语音链路。Codex 命令是否生效，还取决于本机 Codex 版本是否提供对应命令，以及用户是否完成下一节的快捷键绑定。
+
 Windows 客户端位于 [`apps/windows/rc003`](apps/windows/rc003/README.md)，提供：
 
 - WinRT BLE 连接与 ATVV 语音解码；
@@ -50,7 +76,9 @@ PCM。该结论不依赖相同外观或 VID/PID 推断；更多固件版本和�
 
 ## 下载与安装
 
-当前可用的上游正式版：[v0.1.0-windows](https://github.com/miaomiaozii/windows-remote-mic-app/releases/tag/v0.1.0-windows)。Remote Vibe Coding 的独立发布版将在本仓库的 Releases 提供。
+当前 `husaixy/remote-vibe-coding` 尚未发布包含本轮二次开发功能的独立 Release；完整功能已经进入本仓库源码。现阶段请按“从源码本地运行”一节使用，或在 Windows 上运行 `apps/windows/rc003/build/build-candidate.ps1` 自行构建。
+
+上游历史正式版 [v0.1.0-windows](https://github.com/miaomiaozii/windows-remote-mic-app/releases/tag/v0.1.0-windows) 不包含本仓库新增的极简 UI、品牌图标、键盘方向键修复和 Codex Micro 预设。Remote Vibe Coding 独立安装包发布后，将出现在[当前仓库 Releases](https://github.com/husaixy/remote-vibe-coding/releases)，预计提供以下资产：
 
 从 Release 页面 Assets 下载，二选一：
 
@@ -65,20 +93,44 @@ PCM。该结论不依赖相同外观或 VID/PID 推断；更多固件版本和�
 ## 快速开始（安装版）
 
 1. 下载 `RemoteMicRC003Setup-...exe` 并运行，一路“下一步”完成安装；
-2. 首次运行，或双击开始菜单的“Remote Vibe Coding 设置”，打开设置窗口（连接页）；
-3. 在 Windows 设置 → 蓝牙中把 RC001 或 RC003 遥控器与电脑配对；
-4. 回到设置窗口的“连接”页，选择实际型号，再点“保存并重启桥接”；首次使用时会直接启动，已有桥接时会先断开旧连接；
-5. 按遥控器方向键/OK/返回/音量键验证；按客户端文档配置所用输入法和语音输出后，再测试麦克风键。
+2. 在 Windows **设置 → 蓝牙和设备**中配对 RC001 或 RC003 遥控器；
+3. 安装并配置 VB-CABLE，确认播放端存在 `CABLE Input`、录音端存在 `CABLE Output`；
+4. 打开“Remote Vibe Coding 设置”，在连接页选择实际型号和 `CABLE Input` 输出端点；
+5. 根据使用的输入法选择语音快捷键。当前真机方案通常使用长按模式 `Right Alt`，但应先用普通键盘验证输入法确实响应；
+6. 完成下面的 Codex 快捷键绑定；
+7. 在“按键映射”页点击“应用 Codex 预设”，检查映射后点击“保存映射”；
+8. 回到连接页点击“保存并重启桥接”，再依次测试普通按键、Codex 命令和麦克风语音。
 
 ### 使用 Codex 前：手动绑定聚焦快捷键
 
-**首次使用需要自己在 Codex 中添加快捷键绑定，本程序不会自动配置。**
+> **必须先配置 Codex 快捷键。** 本程序不会自动修改 Codex 设置。没有完成绑定时，遥控器可能能够唤醒 Codex，但切换会话、推理强度、发送和批准等动作不会生效。
 
 1. 打开 Codex 的 **设置 → 键盘快捷键（Keyboard Shortcuts）**。
 2. 搜索 **聚焦主聊天 / Focus main chat**，将其绑定为 **`Ctrl+Alt+Shift+F12`** 并保存。这是本项目使用的组合键，不是 Codex 的默认快捷键。
 3. 在已有可输入的 Codex 对话中，先用键盘按该组合键，输入几个字，确认文字进入对话输入框。
-4. 在 Remote Vibe Coding 的“按键映射”中确认主页键：单击为“收起 Codex”，长按为“唤醒 Codex 并聚焦输入框”；点击“保存并重启桥接”。升级会保留旧映射，需要自行检查。
-5. 关闭设置窗口后测试：Codex 在前台时短按主页键收起；切到其他应用后长按主页键约 0.55 秒唤醒并聚焦，再按住语音键说话。
+4. 如果使用 Codex Micro 风格预设，继续绑定下表中的命令：
+
+| Codex 键盘快捷键命令 | 需要绑定为 |
+| --- | --- |
+| Previous recently viewed chat | `Ctrl+Alt+Shift+F1` |
+| Next recently viewed chat | `Ctrl+Alt+Shift+F2` |
+| Decrease reasoning effort | `Ctrl+Alt+Shift+F3` |
+| Increase reasoning effort | `Ctrl+Alt+Shift+F4` |
+| Approve request | `Ctrl+Alt+Shift+F5` |
+| Decline request | `Ctrl+Alt+Shift+F6` |
+| Toggle sidebar | `Ctrl+Alt+Shift+F7` |
+| Switch chat… | `Ctrl+Alt+Shift+F8` |
+| Fork chat | `Ctrl+Alt+Shift+F9` |
+| New chat | `Ctrl+Alt+Shift+F10` |
+| Toggle Fast mode | `Ctrl+Alt+Shift+F11` |
+| Toggle Plan mode | `Ctrl+Alt+Shift+P` |
+| Send message | `Ctrl+Alt+Shift+Enter` |
+
+5. 逐项用普通键盘测试这些组合键；存在冲突时，先解除其他命令或软件占用，再保持 Codex 与 Remote Vibe Coding 两端一致。
+6. 在 Remote Vibe Coding 的“按键映射”中应用 Codex 预设并保存。升级会保留旧映射，不会强制覆盖已有配置。
+7. 关闭设置窗口后测试：Codex 在前台时短按主页键收起；切到其他应用后长按主页键约 0.55 秒唤醒并聚焦，再测试上下、音量、确认等按键。
+
+`Focus main chat` 是其余 Codex 动作的前置绑定：程序会先唤醒并聚焦 Codex，再发送具体命令。不同 Codex 版本或界面语言可能显示不同名称；如果某个命令在本机不存在，该动作暂时不可用，其他已绑定动作不受影响。
 
 如果只能唤醒窗口、无法输入文字，先检查第 2、3 步；如果普通按键也全部无效，按客户端文档检查按键通道。
 完整说明见 [主页键控制 Codex](apps/windows/rc003/README.md#主页键控制-codex)。
@@ -90,6 +142,19 @@ PCM。该结论不依赖相同外观或 VID/PID 推断；更多固件版本和�
 修改 Codex 的私有配置，首次使用需要在 Codex 的 **设置 → 键盘快捷键** 中手动绑定
 命令。完整的按键分配与快捷键表见
 [Codex Micro 风格预设](apps/windows/rc003/README.md#codex-micro-风格预设)。
+
+### 其他使用注意事项
+
+- **语音需要完整音频链路**：遥控器语音经 ATVV 解码后输出到选定播放端点；输入法应从对应的虚拟录音端读取。只连接蓝牙而不配置音频端点，普通按键可能正常但语音不会进入输入法。
+- **语音不直接调用 Codex API**：麦克风音频通过虚拟音频端点和本机输入法转换为文字，Codex 快捷键与输入法语音快捷键是两套独立配置。
+- **先用键盘验证输入法快捷键**：豆包、微信输入法或其他语音工具的快捷键和触发方式可能不同，确认键盘可用后再排查遥控器。
+- **上下键不是六个固定槽位**：当前实现循环切换“最近查看的会话”，会话顺序可能随使用变化；左右键仍保留为普通方向键。
+- **避免同时连接两只同型遥控器**：发现多个匹配设备时程序会拒绝猜测，不会随机连接其中一只。
+- **返回键或音量键缺失时检查权限页**：部分 Windows 环境需要用户主动启用完整 HID 支持并确认一次 UAC；主桥接仍以普通权限运行。
+- **保存后要重启桥接**：连接设备、音频端点或底层按键支持发生变化时，点击“保存并重启桥接”，不要同时启动多个桥接实例。
+- **进程运行不等于设备已连接**：需要结合设置页状态和 `%LOCALAPPDATA%\RemoteMic\RC003\logs\app.log` 中的真实连接、HID 与语音记录判断。
+- **预设会占用音量键**：Codex 预设把音量 ± 用于推理强度；需要调系统音量时，可在映射页改回“系统音量 + / −”或恢复标准默认值。
+- **安装包尚未签名**：SmartScreen 提示属于预期情况；只从本仓库 Release 下载，并按 `SHA256SUMS.txt` 校验文件。
 
 ## 设置界面设计
 
@@ -130,7 +195,7 @@ $env:PYTHONPATH = Join-Path (Get-Location) 'src'
 
 完整安装、配对、VB-CABLE 配置、已知限制和发布流程见 [`apps/windows/rc003/README.md`](apps/windows/rc003/README.md)。
 
-## 仓库来源
+## 来源与第三方实现细节
 
 - **直接上游**：[`miaomiaozii/windows-remote-mic-app`](https://github.com/miaomiaozii/windows-remote-mic-app)。Remote Vibe Coding 从该项目的 Windows 分支继续开发，并保留其提交历史、GPL 许可证和来源说明。
 - **Fork 自**：[`HD838A/remote-mic-app`](https://github.com/HD838A/remote-mic-app)（无线麦 Remote Mic：把小米蓝牙遥控器 2 Pro / RC003 变成 Mac 语音输入设备）。本仓库只保留并继续维护其中的 Windows RC003 部分，macOS/Swift 部分不在此仓库维护。
