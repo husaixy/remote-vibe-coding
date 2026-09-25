@@ -420,6 +420,11 @@ class WindowsCiWorkflowTests(unittest.TestCase):
     def test_scoped_to_rc003_paths(self):
         self.assertIn("apps/windows/rc003/**", self.text)
 
+    def test_every_pull_request_emits_the_required_ci_check(self):
+        event_block = self.text.split("on:", 1)[1].split("\npermissions:", 1)[0]
+        pull_request_block = event_block.split("  pull_request:", 1)[1]
+        self.assertNotIn("paths:", pull_request_block)
+
     def test_runs_public_boundary_scan(self):
         self.assertIn("check-public-boundary.ps1", self.text)
 
@@ -487,8 +492,9 @@ class WindowsCiWorkflowTests(unittest.TestCase):
         # not a bare substring: the portable-packaging step below also
         # quotes some of these same filenames as Copy-Item destination
         # names (e.g. `(Join-Path $stagingDir "THIRD_PARTY_NOTICES.md")`),
-        # which is unrelated to the push/pull_request trigger list and
-        # must not be counted as a trigger occurrence.
+        # which is unrelated to the push trigger list and must not be
+        # counted as a trigger occurrence. Pull requests intentionally run
+        # for every path so the required test-and-build check always exists.
         for path_trigger in (
             "COPYRIGHT.md",
             "LICENSE.md",
@@ -499,8 +505,8 @@ class WindowsCiWorkflowTests(unittest.TestCase):
             trigger_line = f'      - "{path_trigger}"'
             self.assertEqual(
                 self.text.count(trigger_line),
-                2,
-                f'{trigger_line!r} must appear once under push.paths and once under pull_request.paths',
+                1,
+                f'{trigger_line!r} must appear once under push.paths',
             )
 
     def test_pip_cache_uses_the_exact_requirements_dev_path(self):

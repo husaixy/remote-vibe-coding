@@ -51,16 +51,11 @@ on:
       - "device-profiles/xiaomi-rc003.json"
       - "device-profiles/xiaomi-rc001.json"
       - "device-profiles/dji-mic-2.json"
+  # Every pull request must emit the test-and-build check because main's
+  # repository ruleset requires it. A paths filter here would leave docs or
+  # release-workflow-only pull requests permanently waiting for a check that
+  # GitHub never created.
   pull_request:
-    paths:
-      - "apps/windows/rc003/**"
-      - ".github/workflows/windows-rc003-ci.yml"
-      - "COPYRIGHT.md"
-      - "LICENSE.md"
-      - "THIRD_PARTY_NOTICES.md"
-      - "device-profiles/xiaomi-rc003.json"
-      - "device-profiles/xiaomi-rc001.json"
-      - "device-profiles/dji-mic-2.json"
 
 permissions:
   contents: read
